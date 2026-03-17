@@ -79,3 +79,19 @@ export interface Event {
   category: string;
   imageUrl?: string;
 }
+
+export interface NearbyPlace {
+  id: string;              // place_id from Google
+  name: string;
+  category: string;        // 'hotel' | 'attraction' | 'restaurant' etc.
+  address: string;
+  lat: number;
+  lng: number;
+  rating?: number;
+  reviewCount?: number;
+  photoUrl?: string;
+  website?: string;
+  phone?: string;
+  priceLevel?: number;     // 0–4
+  isOpen?: boolean;
+}
