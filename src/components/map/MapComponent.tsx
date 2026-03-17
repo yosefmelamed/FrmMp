@@ -7,6 +7,7 @@ import { CATEGORY_CONFIG } from '@/components/ui/CategoryBadge';
 
 // Map styles — typed as any[] to avoid needing @types/google.maps at module scope
 const MAP_STYLES: any[] = [
+  
   { elementType: 'geometry', stylers: [{ color: '#f8f8f6' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#f8f8f6' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#737373' }] },
