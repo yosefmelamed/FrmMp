@@ -198,7 +198,7 @@ export default function MapComponent({
 
   const [mapLoaded,          setMapLoaded]          = useState(false);
   const [error,              setError]              = useState<string | null>(null);
-  const [visibleEruvs,       setVisibleEruvs]       = useState<Set<EruvKey>>(new Set(['west','east','southeast']));
+  const [visibleEruvs,       setVisibleEruvs]       = useState<Set<EruvKey>>(new Set(['west','east','southeast'] as EruvKey[]));
   const [focusedEruv,        setFocusedEruv]        = useState<EruvKey | null>(null);
   const [showCommunities,    setShowCommunities]    = useState(true);
   const [focusedCommunity,   setFocusedCommunity]   = useState<CommunityKey | null>(null);
@@ -348,7 +348,7 @@ export default function MapComponent({
     });
 
     await Promise.all(typesToFetch.map(async (type) => {
-      setLoadingNearby(prev => new Set([...prev, type]));
+      setLoadingNearby(prev => new Set([...prev, type] as NearbyType[]));
       try {
         const request = {
           fields: ['id', 'displayName', 'location', 'formattedAddress', 'rating',
@@ -405,7 +405,7 @@ export default function MapComponent({
       setNearbyPlaces(prev => prev.filter(p => p.category !== type));
     } else {
       // Turn on — add to active and fetch for current viewport
-      setActiveNearbyTypes(prev => new Set([...prev, type]));
+      setActiveNearbyTypes(prev => new Set([...prev, type] as NearbyType[]));
       fetchAllActiveNearby([type]);
     }
   }, [activeNearbyTypes, fetchAllActiveNearby]);
@@ -603,7 +603,7 @@ export default function MapComponent({
   // ── Legend handlers ───────────────────────────────────────────────────────
   const handleEruvLegend = useCallback((key: EruvKey) => {
     const on = visibleEruvs.has(key);
-    if (!on) { setVisibleEruvs(prev => new Set([...prev, key])); setTimeout(() => { fitToEruv(key); setFocusedEruv(key); }, 50); }
+    if (!on) { setVisibleEruvs(prev => new Set([...prev, key] as EruvKey[])); setTimeout(() => { fitToEruv(key); setFocusedEruv(key); }, 50); }
     else if (focusedEruv === key) { setVisibleEruvs(prev => { const n = new Set(prev); n.delete(key); return n; }); setFocusedEruv(null); }
     else { fitToEruv(key); setFocusedEruv(key); }
   }, [visibleEruvs, focusedEruv, fitToEruv]);
@@ -739,7 +739,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
 }) {
   const [hoveredId,         setHoveredId]         = useState<string | null>(null);
   const [focusedEruv,       setFocusedEruv]       = useState<EruvKey | null>(null);
-  const [visibleEruvs,      setVisibleEruvs]       = useState<Set<EruvKey>>(new Set(['west','east','southeast']));
+  const [visibleEruvs,      setVisibleEruvs]       = useState<Set<EruvKey>>(new Set(['west','east','southeast'] as EruvKey[]));
   const [showCommunities,   setShowCommunities]   = useState(true);
   const [focusedCommunity,  setFocusedCommunity]  = useState<CommunityKey | null>(null);
   const [legendTab,         setLegendTab]         = useState<'eruv'|'community'|'nearby'>('eruv');
@@ -749,7 +749,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
 
   const handleEruvLegend = (k: EruvKey) => {
     const on = visibleEruvs.has(k);
-    if (!on) { setVisibleEruvs(p => new Set([...p, k])); setFocusedEruv(k); }
+    if (!on) { setVisibleEruvs(p => new Set([...p, k] as EruvKey[])); setFocusedEruv(k); }
     else if (focusedEruv === k) { setVisibleEruvs(p => { const n = new Set(p); n.delete(k); return n; }); setFocusedEruv(null); }
     else setFocusedEruv(k);
   };
