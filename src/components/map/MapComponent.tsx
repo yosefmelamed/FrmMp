@@ -348,7 +348,7 @@ export default function MapComponent({
     });
 
     await Promise.all(typesToFetch.map(async (type) => {
-      setLoadingNearby(prev => new Set([...prev, type] as NearbyType[]));
+      setLoadingNearby(prev => new Set(Array.from(prev).concat(type) as NearbyType[]));
       try {
         const request = {
           fields: ['id', 'displayName', 'location', 'formattedAddress', 'rating',
@@ -405,7 +405,7 @@ export default function MapComponent({
       setNearbyPlaces(prev => prev.filter(p => p.category !== type));
     } else {
       // Turn on — add to active and fetch for current viewport
-      setActiveNearbyTypes(prev => new Set([...prev, type] as NearbyType[]));
+      setActiveNearbyTypes(prev => new Set(Array.from(prev).concat(type) as NearbyType[]));
       fetchAllActiveNearby([type]);
     }
   }, [activeNearbyTypes, fetchAllActiveNearby]);
@@ -423,7 +423,7 @@ export default function MapComponent({
       if (activeTypes.size === 0) return;
       clearTimeout(refetchTimerRef.current);
       refetchTimerRef.current = setTimeout(() => {
-        fetchAllActiveNearbyRef.current?.([...activeTypes] as NearbyType[]);
+        fetchAllActiveNearbyRef.current?.(Array.from(activeTypes) as NearbyType[]);
       }, 600);
     });
 
@@ -603,7 +603,7 @@ export default function MapComponent({
   // ── Legend handlers ───────────────────────────────────────────────────────
   const handleEruvLegend = useCallback((key: EruvKey) => {
     const on = visibleEruvs.has(key);
-    if (!on) { setVisibleEruvs(prev => new Set([...prev, key] as EruvKey[])); setTimeout(() => { fitToEruv(key); setFocusedEruv(key); }, 50); }
+    if (!on) { setVisibleEruvs(prev => new Set(Array.from(prev).concat(key) as EruvKey[])); setTimeout(() => { fitToEruv(key); setFocusedEruv(key); }, 50); }
     else if (focusedEruv === key) { setVisibleEruvs(prev => { const n = new Set(prev); n.delete(key); return n; }); setFocusedEruv(null); }
     else { fitToEruv(key); setFocusedEruv(key); }
   }, [visibleEruvs, focusedEruv, fitToEruv]);
@@ -749,7 +749,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
 
   const handleEruvLegend = (k: EruvKey) => {
     const on = visibleEruvs.has(k);
-    if (!on) { setVisibleEruvs(p => new Set([...p, k] as EruvKey[])); setFocusedEruv(k); }
+    if (!on) { setVisibleEruvs(p => new Set(Array.from(p).concat(k) as EruvKey[])); setFocusedEruv(k); }
     else if (focusedEruv === k) { setVisibleEruvs(p => { const n = new Set(p); n.delete(k); return n; }); setFocusedEruv(null); }
     else setFocusedEruv(k);
   };
