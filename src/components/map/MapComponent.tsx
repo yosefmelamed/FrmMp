@@ -24,6 +24,7 @@ const MAP_STYLES: any[] = [
 const NEARBY_TYPES = {
   hotel:      { label: 'Hotels',      emoji: '🏨', color: '#0891b2', googleType: 'lodging' },
   attraction: { label: 'Attractions', emoji: '🎭', color: '#7c3aed', googleType: 'tourist_attraction' },
+  restaurant: { label: 'Restaurants', emoji: '🍴', color: '#b45309', googleType: 'restaurant' },
   shopping:   { label: 'Shopping',    emoji: '🛍️', color: '#be185d', googleType: 'shopping_mall' },
 } as const;
 type NearbyType = keyof typeof NEARBY_TYPES;
@@ -43,17 +44,23 @@ const ERUV_BOUNDARIES = {
   east: {
     label: 'East Denver Eruv',
     color: '#0369a1',
+    // Boundary derived from denvereruv.org map (center 39.7138, -104.9143 zoom 13)
+    // N: Colfax Ave, W: Colorado Blvd, S: Leetsdale Dr/Cedar Ave, E: Quebec St
+    // Verified against community synagogue locations (Bais Menachem, EDOS, Young Israel,
+    // BMH-BJ, Kehilas Bais Yisroel, WCRJ, Aish Kodesh, Tehilas Hashem)
     coords: [
-      { lat: 39.7480, lng: -104.9650 },
-      { lat: 39.7480, lng: -104.9200 },
-      { lat: 39.7380, lng: -104.9050 },
-      { lat: 39.7200, lng: -104.9050 },
-      { lat: 39.7100, lng: -104.9150 },
-      { lat: 39.7050, lng: -104.9300 },
-      { lat: 39.7100, lng: -104.9500 },
-      { lat: 39.7200, lng: -104.9580 },
-      { lat: 39.7350, lng: -104.9620 },
-      { lat: 39.7480, lng: -104.9650 },
+      { lat: 39.7402, lng: -104.9403 }, // NW: Colfax & Colorado Blvd
+      { lat: 39.7402, lng: -104.9271 }, // N: Colfax running east
+      { lat: 39.7402, lng: -104.9148 }, // N: Colfax continuing east
+      { lat: 39.7401, lng: -104.9035 }, // NE: Colfax & Quebec St
+      { lat: 39.7281, lng: -104.9035 }, // E: Quebec St going south
+      { lat: 39.7168, lng: -104.9035 }, // E: Quebec continuing south
+      { lat: 39.7073, lng: -104.9035 }, // SE: Quebec & Leetsdale area
+      { lat: 39.7073, lng: -104.9222 }, // S: Leetsdale/Cedar going west
+      { lat: 39.7073, lng: -104.9393 }, // SW: Cedar & Colorado Blvd
+      { lat: 39.7112, lng: -104.9393 }, // W: Colorado Blvd going north
+      { lat: 39.7242, lng: -104.9393 }, // W: Colorado Blvd continuing
+      { lat: 39.7402, lng: -104.9403 }, // back to NW
     ],
   },
   southeast: {
@@ -260,14 +267,35 @@ export default function MapComponent({
       if (eruvPolygonsRef.current.has(key)) return;
       const eruv = ERUV_BOUNDARIES[key];
       const poly = new gm.Polygon({
-        paths: eruv.coords, map: mapInstance.current, visible: visibleEruvs.has(key),
-        strokeOpacity: 0, strokeWeight: 0, fillColor: eruv.color, fillOpacity: 0.08,
-        clickable: true, zIndex: 2,
+        paths: Array.from(eruv.coords),
+        map: mapInstance.current,
+        visible: visibleEruvs.has(key),
+        strokeOpacity: 0,
+        strokeWeight: 0,
+        fillColor: eruv.color,
+        fillOpacity: 0.05,   // very subtle fill — the dashed border is the main visual
+        clickable: true,
+        zIndex: 2,
       });
       const line = new gm.Polyline({
-        path: [...eruv.coords, eruv.coords[0]], map: mapInstance.current, visible: visibleEruvs.has(key),
-        strokeOpacity: 0, strokeWeight: 0, clickable: true, zIndex: 3,
-        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: 3.5, scale: 3.5, strokeColor: eruv.color }, offset: '0', repeat: '14px' }],
+        path: Array.from(eruv.coords).concat([eruv.coords[0]]),
+        map: mapInstance.current,
+        visible: visibleEruvs.has(key),
+        strokeOpacity: 0,
+        strokeWeight: 0,
+        clickable: true,
+        zIndex: 3,
+        icons: [{
+          icon: {
+            path: 'M 0,-1 0,1',
+            strokeOpacity: 1,
+            strokeWeight: 3,
+            scale: 4,
+            strokeColor: eruv.color,
+          },
+          offset: '0',
+          repeat: '18px',   // wider spacing = cleaner, less busy dash
+        }],
       });
       const handler = () => { setFocusedEruv(key); fitToEruv(key); setLegendTab('eruv'); setLegendOpen(true); };
       poly.addListener('click', handler); line.addListener('click', handler);
@@ -768,7 +796,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
   ];
   const eruvShapes = [
     { key: 'west'      as EruvKey, points: '15%,28% 40%,28% 40%,58% 15%,58%',         color: '#7c3aed' },
-    { key: 'east'      as EruvKey, points: '40%,26% 72%,26% 72%,58% 55%,66% 40%,58%', color: '#0369a1' },
+    { key: 'east'      as EruvKey, points: '42%,23% 72%,23% 72%,60% 42%,60%',         color: '#0369a1' },
     { key: 'southeast' as EruvKey, points: '50%,58% 75%,58% 75%,80% 50%,80%',         color: '#047857' },
   ];
 
