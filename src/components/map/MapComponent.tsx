@@ -24,62 +24,36 @@ const MAP_STYLES: any[] = [
 const NEARBY_TYPES = {
   hotel:      { label: 'Hotels',      emoji: '🏨', color: '#0891b2', googleType: 'lodging' },
   attraction: { label: 'Attractions', emoji: '🎭', color: '#7c3aed', googleType: 'tourist_attraction' },
-  restaurant: { label: 'Restaurants', emoji: '🍴', color: '#b45309', googleType: 'restaurant' },
   shopping:   { label: 'Shopping',    emoji: '🛍️', color: '#be185d', googleType: 'shopping_mall' },
 } as const;
 type NearbyType = keyof typeof NEARBY_TYPES;
 
 // ─── Eruv boundaries ──────────────────────────────────────────────────────────
-const ERUV_BOUNDARIES = {
+const ERUV_BOUNDARIES: Record<string, { label: string; color: string; coords: { lat: number; lng: number }[] }> = {
   west: {
     label: 'West Denver Eruv',
     color: '#7c3aed',
     coords: [
-      { lat: 39.7440, lng: -105.0532 }, // NW: 17th Ave & Sheridan
-      { lat: 39.7439, lng: -105.0395 }, // NE: 17th Ave & Perry St
-      { lat: 39.7349, lng: -105.0394 }, // SE: Perry St & Lakewood Gulch
-      { lat: 39.7356, lng: -105.0520 }, // SW: Sheridan & Lakewood Gulch
+      { lat: 39.7440, lng: -105.0532 },
+      { lat: 39.7439, lng: -105.0395 },
+      { lat: 39.7349, lng: -105.0394 },
+      { lat: 39.7356, lng: -105.0520 },
     ],
   },
   east: {
     label: 'East Denver Eruv',
     color: '#0369a1',
-    // Boundary derived from denvereruv.org map (center 39.7138, -104.9143 zoom 13)
-    // N: Colfax Ave, W: Colorado Blvd, S: Leetsdale Dr/Cedar Ave, E: Quebec St
-    // Verified against community synagogue locations (Bais Menachem, EDOS, Young Israel,
-    // BMH-BJ, Kehilas Bais Yisroel, WCRJ, Aish Kodesh, Tehilas Hashem)
-    coords: [
-      { lat: 39.7402, lng: -104.9403 }, // NW: Colfax & Colorado Blvd
-      { lat: 39.7402, lng: -104.9271 }, // N: Colfax running east
-      { lat: 39.7402, lng: -104.9148 }, // N: Colfax continuing east
-      { lat: 39.7401, lng: -104.9035 }, // NE: Colfax & Quebec St
-      { lat: 39.7281, lng: -104.9035 }, // E: Quebec St going south
-      { lat: 39.7168, lng: -104.9035 }, // E: Quebec continuing south
-      { lat: 39.7073, lng: -104.9035 }, // SE: Quebec & Leetsdale area
-      { lat: 39.7073, lng: -104.9222 }, // S: Leetsdale/Cedar going west
-      { lat: 39.7073, lng: -104.9393 }, // SW: Cedar & Colorado Blvd
-      { lat: 39.7112, lng: -104.9393 }, // W: Colorado Blvd going north
-      { lat: 39.7242, lng: -104.9393 }, // W: Colorado Blvd continuing
-      { lat: 39.7402, lng: -104.9403 }, // back to NW
-    ],
+    // Loaded dynamically from /east-eruv.geojson (denvereruv.org — Updated Checkers Map)
+    coords: [],
   },
   southeast: {
     label: 'SE Denver Eruv',
     color: '#047857',
-    coords: [
-      { lat: 39.6480, lng: -104.9055 },
-      { lat: 39.6480, lng: -104.8775 },
-      { lat: 39.6340, lng: -104.8775 },
-      { lat: 39.6130, lng: -104.8780 },
-      { lat: 39.6130, lng: -104.8860 },
-      { lat: 39.6090, lng: -104.8960 },
-      { lat: 39.6090, lng: -104.9055 },
-      { lat: 39.6190, lng: -104.9055 },
-      { lat: 39.6480, lng: -104.9055 },
-    ],
+    // Loaded dynamically from /se-eruv.geojson
+    coords: [],
   },
-} as const;
-type EruvKey = keyof typeof ERUV_BOUNDARIES;
+};
+type EruvKey = 'west' | 'east' | 'southeast';
 
 // ─── Community area overlays ──────────────────────────────────────────────────
 const COMMUNITY_AREAS = {
@@ -254,6 +228,111 @@ export default function MapComponent({
         });
         infoWindowRef.current = new gm.InfoWindow({ disableAutoPan: false });
         setMapLoaded(true);
+        // Load east eruv boundary from GeoJSON FeatureCollection.
+        // The file has multiple LineString features (one per boundary segment).
+        // We draw each segment as its own dashed Polyline — exactly matching the original map.
+        // A transparent Polygon covering all points is used for the fill + click area.
+        fetch('/east-eruv.geojson')
+          .then(r => r.json())
+          .then(data => {
+            if (!mapInstance.current) return;
+            const g = (window as any).google.maps;
+            const eruv = ERUV_BOUNDARIES.east;
+            const isVisible = visibleEruvs.has('east');
+            const handler = () => { setFocusedEruv('east'); setLegendTab('eruv'); setLegendOpen(true); };
+
+            const features: any[] = data?.features ?? [];
+            const lineFeatures = features.filter((f: any) => f.geometry?.type === 'LineString');
+
+            // Collect all coords across all segments for the fill polygon + fitBounds
+            const allCoords: { lat: number; lng: number }[] = [];
+            const polylines: any[] = [];
+
+            lineFeatures.forEach((f: any) => {
+              const segCoords = f.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
+              allCoords.push(...segCoords);
+
+              // One dashed polyline per segment
+              const pl = new g.Polyline({
+                path: segCoords,
+                map: mapInstance.current,
+                visible: isVisible,
+                strokeOpacity: 0,
+                strokeWeight: 0,
+                clickable: true,
+                zIndex: 3,
+                icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeWeight: 3, scale: 4, strokeColor: eruv.color }, offset: '0', repeat: '18px' }],
+              });
+              pl.addListener('click', handler);
+              polylines.push(pl);
+            });
+
+            // Populate coords for fitToEruv / legend
+            ERUV_BOUNDARIES.east.coords = allCoords;
+
+            // Transparent fill polygon (convex hull approximation = just all coords)
+            const fillPoly = new g.Polygon({
+              paths: allCoords,
+              map: mapInstance.current,
+              visible: isVisible,
+              strokeOpacity: 0, strokeWeight: 0,
+              fillColor: eruv.color, fillOpacity: 0.05,
+              clickable: true, zIndex: 2,
+            });
+            fillPoly.addListener('click', handler);
+
+            // Store fill poly under 'east' for visibility toggling
+            eruvPolygonsRef.current.set('east', fillPoly);
+            // Store all polylines — we extend the ref with indexed keys
+            polylines.forEach((pl, i) => {
+              eruvPolylinesRef.current.set(`east_${i}` as any, pl);
+            });
+          })
+          .catch(e => console.warn('[Eruv] east-eruv.geojson failed to load:', e));
+
+        // Load SE eruv boundary from GeoJSON — same pattern as east
+        fetch('/se-eruv.geojson')
+          .then(r => r.json())
+          .then(data => {
+            if (!mapInstance.current) return;
+            const g = (window as any).google.maps;
+            const eruv = ERUV_BOUNDARIES.southeast;
+            const isVisible = visibleEruvs.has('southeast');
+            const handler = () => { setFocusedEruv('southeast'); setLegendTab('eruv'); setLegendOpen(true); };
+
+            const features: any[] = data?.features ?? [];
+            const lineFeatures = features.filter((f: any) => f.geometry?.type === 'LineString');
+            const allCoords: { lat: number; lng: number }[] = [];
+
+            lineFeatures.forEach((f: any) => {
+              const segCoords = f.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
+              allCoords.push(...segCoords);
+
+              const pl = new g.Polyline({
+                path: segCoords,
+                map: mapInstance.current,
+                visible: isVisible,
+                strokeOpacity: 0, strokeWeight: 0,
+                clickable: true, zIndex: 3,
+                icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeWeight: 3, scale: 4, strokeColor: eruv.color }, offset: '0', repeat: '18px' }],
+              });
+              pl.addListener('click', handler);
+              eruvPolylinesRef.current.set(('southeast_' + allCoords.length) as any, pl);
+            });
+
+            ERUV_BOUNDARIES.southeast.coords = allCoords;
+
+            const fillPoly = new g.Polygon({
+              paths: allCoords, map: mapInstance.current,
+              visible: isVisible,
+              strokeOpacity: 0, strokeWeight: 0,
+              fillColor: eruv.color, fillOpacity: 0.05,
+              clickable: true, zIndex: 2,
+            });
+            fillPoly.addListener('click', handler);
+            eruvPolygonsRef.current.set('southeast', fillPoly);
+          })
+          .catch(e => console.warn('[Eruv] se-eruv.geojson failed to load:', e));
       } catch { setError('load-error'); }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,6 +343,7 @@ export default function MapComponent({
     if (!mapLoaded || !mapInstance.current) return;
     const gm = (window as any).google.maps;
     (Object.keys(ERUV_BOUNDARIES) as EruvKey[]).forEach(key => {
+      if (key === 'east' || key === 'southeast') return; // drawn after GeoJSON fetch
       if (eruvPolygonsRef.current.has(key)) return;
       const eruv = ERUV_BOUNDARIES[key];
       const poly = new gm.Polygon({
