@@ -5,6 +5,7 @@ export type AmenityCategory =
   | 'jewish_school'
   | 'mikveh'
   | 'jewish_center'
+  | 'accommodation'
   | 'cemetery'
   | 'bakery'
   | 'butcher';
@@ -81,9 +82,9 @@ export interface Event {
 }
 
 export interface NearbyPlace {
-  id: string;              // place_id from Google
+  id: string;              // Google place_id
   name: string;
-  category: string;        // 'hotel' | 'attraction' | 'restaurant' etc.
+  category: string;        // 'hotel' | 'attraction' | 'restaurant' | 'shopping'
   address: string;
   lat: number;
   lng: number;

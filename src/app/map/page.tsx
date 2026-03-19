@@ -34,7 +34,8 @@ const SHEET_FULL = 'calc(88vh)';
 const NEARBY_DISPLAY: Record<string, { emoji: string; label: string }> = {
   hotel:      { emoji: '🏨', label: 'Hotel' },
   attraction: { emoji: '🎭', label: 'Attraction' },
-  shopping:   { emoji: '🛍️', label: 'Shopping' }
+  shopping:   { emoji: '🛍️', label: 'Shopping' },
+  restaurant: { emoji: '🍴', label: 'Restaurant' },
 };
 
 // ── Nearby Place Drawer ──────────────────────────────────────────────────────
@@ -182,9 +183,10 @@ function NearbyDrawer({
 export default function MapPage() {
   const [amenities,        setAmenities]        = useState<Amenity[]>([]);
   const [loading,          setLoading]          = useState(true);
-  const [activeCategories, setActiveCategories] = useState<Set<AmenityCategory>>(new Set(ALL_CATEGORIES));
+  const [activeCategories, setActiveCategories] = useState<Set<AmenityCategory>>(new Set(ALL_CATEGORIES ?? []));
   const [selectedId,       setSelectedId]       = useState<string | null>(null);
   const [search,           setSearch]           = useState('');
+  const [debouncedSearch,  setDebouncedSearch]  = useState('');
   const [itineraryStops,   setItineraryStops]   = useState<ItineraryStop[]>([]);
   const [sidebarMode,      setSidebarMode]      = useState<SidebarMode>('list');
   const [detailAmenity,    setDetailAmenity]    = useState<Amenity | null>(null);
@@ -199,24 +201,30 @@ export default function MapPage() {
     });
   }, []);
 
+  // Debounce search input — only filter after 300ms of no typing
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const categoryCounts = useMemo(() => {
     const counts = {} as Record<AmenityCategory, number>;
-    ALL_CATEGORIES.forEach(c => (counts[c] = 0));
-    amenities.forEach(a => counts[a.category]++);
+    (ALL_CATEGORIES ?? []).forEach(c => (counts[c] = 0));
+    amenities.forEach(a => { if (a.category) counts[a.category] = (counts[a.category] ?? 0) + 1; });
     return counts;
   }, [amenities]);
 
   const filtered = useMemo(() => {
     return amenities.filter(a => {
       if (!activeCategories.has(a.category)) return false;
-      if (search) {
-        const q = search.toLowerCase();
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
         return a.name.toLowerCase().includes(q) || a.address.toLowerCase().includes(q) ||
           a.description?.toLowerCase().includes(q) || a.tags?.some(t => t.toLowerCase().includes(q));
       }
       return true;
     });
-  }, [amenities, activeCategories, search]);
+  }, [amenities, activeCategories, debouncedSearch]);
 
   const handleOpenDrawer = useCallback((amenity: Amenity) => {
     setDetailAmenity(amenity); setDetailNearby(null);
@@ -273,13 +281,13 @@ export default function MapPage() {
                 filtersOpen ? 'bg-blue-50 text-blue-600 font-medium' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50')}>
               <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
               <span className={clsx('ml-auto text-[10px] font-semibold rounded-full px-1.5 py-0.5',
-                activeCategories.size < ALL_CATEGORIES.length ? 'bg-blue-100 text-blue-600' : 'bg-zinc-100 text-zinc-400')}>
-                {activeCategories.size}/{ALL_CATEGORIES.length}
+                activeCategories.size < (ALL_CATEGORIES?.length ?? 0) ? 'bg-blue-100 text-blue-600' : 'bg-zinc-100 text-zinc-400')}>
+                {activeCategories.size}/{ALL_CATEGORIES?.length ?? 0}
               </span>
             </button>
           </div>
 
-          {filtersOpen && <MapFilters active={activeCategories} onChange={setActiveCategories} counts={categoryCounts} />}
+          {filtersOpen && <MapFilters active={activeCategories} onChange={(cats) => setActiveCategories(new Set(cats))} counts={categoryCounts} />}
 
           <div className="px-4 py-1.5 flex items-center justify-between border-b border-zinc-50">
             <span className="text-xs text-zinc-400">{loading ? 'Loading…' : `${filtered.length} places`}</span>

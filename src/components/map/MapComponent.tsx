@@ -119,7 +119,7 @@ function getBounds(coords: readonly { lat: number; lng: number }[]) {
 const MARKER_COLORS: Record<AmenityCategory, string> = {
   synagogue: '#2563eb', kosher_restaurant: '#059669', kosher_grocery: '#16a34a',
   jewish_school: '#7c3aed', mikveh: '#0284c7', jewish_center: '#d97706',
-  cemetery: '#71717a', bakery: '#ea580c', butcher: '#dc2626',
+  accommodation: '#4f46e5', cemetery: '#71717a', bakery: '#ea580c', butcher: '#dc2626',
 };
 
 function buildMarkerSvg(category: AmenityCategory, selected: boolean): string {
@@ -676,17 +676,21 @@ export default function MapComponent({
 
   // ── Sync community amenity markers ────────────────────────────────────────
   useEffect(() => {
-    if (!amenities || !Array.isArray(amenities) || amenities.length === 0) return;
     if (!mapLoaded || !mapInstance.current) return;
     const gm = (window as any).google.maps;
-    const ids = new Set(amenities.map(a => a.id));
-    markersRef.current.forEach((m, id) => { if (!ids.has(id)) { m.setMap(null); markersRef.current.delete(id); } });
-    amenities.forEach(amenity => {
+    const safeAmenities = Array.isArray(amenities) ? amenities : [];
+    // Remove markers not in current filtered set (handles "None" / filter changes)
+    const ids = new Set(safeAmenities.map(a => a.id));
+    markersRef.current.forEach((m, id) => {
+      if (!ids.has(id)) { m.setMap(null); markersRef.current.delete(id); }
+    });
+    // Add or update markers — no animation so they appear/disappear instantly
+    safeAmenities.forEach(amenity => {
       const isSel = amenity.id === selectedId;
       const ico = { url: buildMarkerSvg(amenity.category, isSel), scaledSize: new gm.Size(isSel?42:34, isSel?51:43), anchor: new gm.Point(isSel?21:17, isSel?51:43) };
       const ex = markersRef.current.get(amenity.id);
       if (ex) { ex.setIcon(ico); return; }
-      const m = new gm.Marker({ position: { lat: amenity.lat, lng: amenity.lng }, map: mapInstance.current, title: amenity.name, icon: ico, animation: gm.Animation.DROP, zIndex: 10 });
+      const m = new gm.Marker({ position: { lat: amenity.lat, lng: amenity.lng }, map: mapInstance.current, title: amenity.name, icon: ico, zIndex: 10 });
       m.addListener('click', () => { infoWindowRef.current.setContent(buildInfoContent(amenity)); infoWindowRef.current.open(mapInstance.current, m); onSelect(amenity); });
       markersRef.current.set(amenity.id, m);
     });
