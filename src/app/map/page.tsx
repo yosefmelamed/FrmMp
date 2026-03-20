@@ -449,7 +449,7 @@ export default function MapPage() {
                       {it.stops.slice(0, 3).map((stop, i) => {
                         const a = amenities.find(x => x.id === stop.amenityId);
                         return (
-                          <div key={stop.id ?? i} className="flex items-center gap-1.5 text-xs text-zinc-500">
+                          <div key={i} className="flex items-center gap-1.5 text-xs text-zinc-500">
                             <span className="w-4 h-4 rounded-full bg-zinc-100 text-zinc-400 flex items-center justify-center text-[10px] shrink-0">{i + 1}</span>
                             <span className="truncate">{a?.name ?? 'Unknown place'}</span>
                           </div>
