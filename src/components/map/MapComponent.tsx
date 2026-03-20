@@ -159,10 +159,13 @@ interface MapProps {
   onOpenDrawer: (amenity: Amenity) => void;
   onAddToItinerary?: (amenity: Amenity) => void;
   onOpenNearbyDrawer?: (place: NearbyPlace) => void;
+  onToggleSave?: (amenity: Amenity) => void;
+  savedIds?: Set<string>;
 }
 
 export default function MapComponent({
   amenities = [], center, selectedId, onSelect, onOpenDrawer, onAddToItinerary, onOpenNearbyDrawer,
+  onToggleSave, savedIds,
 }: MapProps) {
   const mapRef             = useRef<HTMLDivElement>(null);
   const mapInstance        = useRef<any>(null);
@@ -583,26 +586,37 @@ export default function MapComponent({
 
   // ── Info window: community amenity ────────────────────────────────────────
   const buildInfoContent = useCallback((amenity: Amenity) => {
-    const cfg = CATEGORY_CONFIG[amenity.category];
+    const cfg     = CATEGORY_CONFIG[amenity.category];
+    const isSaved = savedIds?.has(amenity.id) ?? false;
+    const heartBg = isSaved ? '#fef2f2' : '#f4f4f5';
+    const heartCl = isSaved ? '#ef4444' : '#a1a1aa';
+    const heartSv = isSaved
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     return `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;width:210px;padding:12px 14px;border-radius:12px;">
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;width:224px;padding:12px 14px;border-radius:12px;">
   <div style="display:flex;align-items:flex-start;gap:9px;margin-bottom:9px;">
     <div style="width:32px;height:32px;background:#f0f9ff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${cfg.emoji}</div>
     <div style="flex:1;min-width:0;">
       <p style="margin:0;font-size:12px;font-weight:600;color:#18181b;line-height:1.3;">${amenity.name}</p>
       <p style="margin:2px 0 0;font-size:10px;color:#a1a1aa;">${cfg.label}</p>
     </div>
+    <button onclick="window.__mapToggleSave && window.__mapToggleSave('${amenity.id}')"
+      style="background:${heartBg};border:none;border-radius:7px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"
+      title="${isSaved ? 'Unsave' : 'Save'}">${heartSv}</button>
   </div>
-  ${amenity.rating ? `<div style="margin-bottom:7px;font-size:10px;color:#d97706;">★ ${amenity.rating} <span style="color:#d4d4d8;">(${amenity.reviewCount ?? 0})</span></div>` : ''}
+  ${amenity.rating ? `<div style="margin-bottom:7px;font-size:10px;color:#d97706;">&#9733; ${amenity.rating} <span style="color:#d4d4d8;">(${amenity.reviewCount ?? 0})</span></div>` : ''}
   <div style="font-size:10px;color:#71717a;margin-bottom:9px;line-height:1.5;">${amenity.address}</div>
-  <div style="display:flex;gap:5px;">
+  <div style="display:flex;gap:5px;margin-bottom:5px;">
     <button onclick="window.__mapOpenDrawer && window.__mapOpenDrawer('${amenity.id}')"
       style="flex:1;padding:6px 0;background:#2563eb;color:white;border:none;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;">View Details</button>
     <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(amenity.address)}" target="_blank"
-      style="display:flex;align-items:center;justify-content:center;width:28px;height:26px;background:#f4f4f5;border-radius:7px;font-size:13px;text-decoration:none;">🗺️</a>
+      style="display:flex;align-items:center;justify-content:center;width:28px;height:26px;background:#f4f4f5;border-radius:7px;font-size:10px;text-decoration:none;color:#52525b;font-weight:600;">Dir</a>
   </div>
+  <button onclick="window.__mapAddToItinerary && window.__mapAddToItinerary('${amenity.id}')"
+    style="width:100%;padding:5px 0;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;">+ Add to Itinerary</button>
 </div>`;
-  }, []);
+  }, [savedIds]);
 
   // ── Info window: nearby place ─────────────────────────────────────────────
   const buildNearbyInfoContent = useCallback((place: NearbyPlace) => {
@@ -644,6 +658,22 @@ export default function MapComponent({
   }, [amenities, onOpenDrawer]);
 
   useEffect(() => {
+    (window as any).__mapToggleSave = (id: string) => {
+      const a = (amenities ?? []).find(x => x.id === id);
+      if (a && onToggleSave) onToggleSave(a);
+    };
+    return () => { delete (window as any).__mapToggleSave; };
+  }, [amenities, onToggleSave]);
+
+  useEffect(() => {
+    (window as any).__mapAddToItinerary = (id: string) => {
+      const a = (amenities ?? []).find(x => x.id === id);
+      if (a && onAddToItinerary) { onAddToItinerary(a); infoWindowRef.current?.close(); }
+    };
+    return () => { delete (window as any).__mapAddToItinerary; };
+  }, [amenities, onAddToItinerary]);
+
+  useEffect(() => {
     (window as any).__addNearbyToItinerary = (placeId: string) => {
       const place = nearbyPlaces.find(p => p.id === placeId);
       if (!place || !onAddToItinerary) return;
@@ -674,6 +704,8 @@ export default function MapComponent({
     return () => { delete (window as any).__openNearbyDrawer; };
   }, [nearbyPlaces, onOpenNearbyDrawer]);
 
+  const openInfoAmenityRef = useRef<Amenity | null>(null);
+
   // ── Sync community amenity markers ────────────────────────────────────────
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
@@ -691,10 +723,25 @@ export default function MapComponent({
       const ex = markersRef.current.get(amenity.id);
       if (ex) { ex.setIcon(ico); return; }
       const m = new gm.Marker({ position: { lat: amenity.lat, lng: amenity.lng }, map: mapInstance.current, title: amenity.name, icon: ico, zIndex: 10 });
-      m.addListener('click', () => { infoWindowRef.current.setContent(buildInfoContent(amenity)); infoWindowRef.current.open(mapInstance.current, m); onSelect(amenity); });
+      m.addListener('click', () => {
+        openInfoAmenityRef.current = amenity;
+        infoWindowRef.current.setContent(buildInfoContent(amenity));
+        infoWindowRef.current.open(mapInstance.current, m);
+        onSelect(amenity);
+      });
       markersRef.current.set(amenity.id, m);
     });
-  }, [amenities, mapLoaded, selectedId, onSelect, buildInfoContent]);
+  }, [amenities, mapLoaded, selectedId, onSelect, buildInfoContent, savedIds]);
+
+  // ── Refresh open info window when savedIds changes (heart icon update) ────
+  useEffect(() => {
+    if (!openInfoAmenityRef.current || !infoWindowRef.current) return;
+    const amenity = openInfoAmenityRef.current;
+    // Only refresh if this info window is actually open
+    try {
+      infoWindowRef.current.setContent(buildInfoContent(amenity));
+    } catch { /* info window may be closed */ }
+  }, [savedIds, buildInfoContent]);
 
   useEffect(() => {
     if (!mapLoaded || !selectedId || !mapInstance.current) return;

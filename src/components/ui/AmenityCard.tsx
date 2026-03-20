@@ -2,7 +2,7 @@
 
 import type { Amenity } from '@/types';
 import { CategoryBadge, RatingStars } from '@/components/ui/CategoryBadge';
-import { MapPin, Phone, Clock, Plus, Navigation, ExternalLink, ChevronRight } from 'lucide-react';
+import { MapPin, Phone, Clock, Plus, Navigation, ExternalLink, ChevronRight, Heart, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
 interface AmenityCardProps {
@@ -17,6 +17,9 @@ interface AmenityCardProps {
   /** Client-side navigate callback — only pass from Client Components */
   onNavigate?: (a: Amenity) => void;
   showActions?: boolean;
+  onSave?: (a: Amenity) => void;
+  isSaved?: boolean;
+  savingThis?: boolean;
 }
 
 export default function AmenityCard({
@@ -29,6 +32,9 @@ export default function AmenityCard({
   onViewDetail,
   onNavigate,
   showActions = true,
+  onSave,
+  isSaved = false,
+  savingThis = false,
 }: AmenityCardProps) {
   const firstHoursEntry = amenity.hours ? Object.entries(amenity.hours)[0] : null;
   const directionsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(amenity.address)}`;
@@ -54,11 +60,25 @@ export default function AmenityCard({
             <p className="text-xs text-zinc-400 mt-0.5">{amenity.denomination}</p>
           )}
         </div>
-        {amenity.rating && (
-          <div className="shrink-0 mt-0.5">
+        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          {amenity.rating && (
             <RatingStars rating={amenity.rating} count={compact ? undefined : amenity.reviewCount} />
-          </div>
-        )}
+          )}
+          {onSave && (
+            <button
+              onClick={e => { e.stopPropagation(); onSave(amenity); }}
+              className={clsx(
+                'p-1 rounded-full transition-all',
+                isSaved ? 'text-red-500' : 'text-zinc-300 hover:text-red-400'
+              )}
+            >
+              {savingThis
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Heart className={clsx('w-3.5 h-3.5', isSaved && 'fill-red-400')} />
+              }
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Address */}

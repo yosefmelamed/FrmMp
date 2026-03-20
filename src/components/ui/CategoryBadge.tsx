@@ -4,14 +4,14 @@ export const CATEGORY_CONFIG: Record<
   AmenityCategory,
   { label: string; color: string; bg: string; border: string; dot: string; emoji: string }
 > = {
-  synagogue:         { label: 'Synagogue',     color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-100',   dot: 'bg-blue-500',   emoji: '\u2721\ufe0f' },
+  synagogue:         { label: 'Synagogue',     color: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-100',   dot: 'bg-blue-500',   emoji: '\u2721\uFE0F' },
   kosher_restaurant: { label: 'Restaurant',    color: 'text-emerald-700',bg: 'bg-emerald-50', border: 'border-emerald-100',dot: 'bg-emerald-500',emoji: '\uD83C\uDF7D\uFE0F' },
   kosher_grocery:    { label: 'Grocery',       color: 'text-green-700',  bg: 'bg-green-50',   border: 'border-green-100',  dot: 'bg-green-500',  emoji: '\uD83D\uDED2' },
   jewish_school:     { label: 'School',        color: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-100', dot: 'bg-violet-500', emoji: '\uD83D\uDCDA' },
   mikveh:            { label: 'Mikveh',        color: 'text-sky-700',    bg: 'bg-sky-50',     border: 'border-sky-100',    dot: 'bg-sky-500',    emoji: '\uD83D\uDCA7' },
   jewish_center:     { label: 'Jewish Center', color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-100',  dot: 'bg-amber-500',  emoji: '\uD83C\uDFDB\uFE0F' },
   accommodation:     { label: 'Accommodation', color: 'text-indigo-700', bg: 'bg-indigo-50',  border: 'border-indigo-100', dot: 'bg-indigo-500', emoji: '\uD83C\uDFE8' },
-  cemetery:          { label: 'Cemetery',      color: 'text-zinc-600',   bg: 'bg-zinc-50',    border: 'border-zinc-100',   dot: 'bg-zinc-400',   emoji: '\uD83D\uDD4A\uFE0F' },
+  cemetery:          { label: 'Cemetery',      color: 'text-zinc-600',   bg: 'bg-zinc-50',    border: 'border-zinc-100',   dot: 'bg-zinc-400',   emoji: '\uD83D\uDDB4\uFE0F' },
   bakery:            { label: 'Bakery',        color: 'text-orange-700', bg: 'bg-orange-50',  border: 'border-orange-100', dot: 'bg-orange-500', emoji: '\uD83E\uDD50' },
   butcher:           { label: 'Butcher',       color: 'text-red-700',    bg: 'bg-red-50',     border: 'border-red-100',    dot: 'bg-red-500',    emoji: '\uD83E\uDD69' },
 };
