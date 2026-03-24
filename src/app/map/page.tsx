@@ -1,6 +1,7 @@
 'use client';
-
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+ 
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { Amenity, AmenityCategory, ItineraryStop, NearbyPlace } from '@/types';
 import { getAmenities, getMapCenter } from '@/lib/api';
@@ -17,7 +18,7 @@ import {
   History, Save, Loader2, FolderOpen, Trash2, Star
 } from 'lucide-react';
 import clsx from 'clsx';
-
+ 
 const MapComponent = dynamic(() => import('@/components/map/MapComponent'), {
   ssr: false,
   loading: () => (
@@ -26,18 +27,20 @@ const MapComponent = dynamic(() => import('@/components/map/MapComponent'), {
     </div>
   ),
 });
-
+ 
 type SidebarMode = 'list' | 'detail' | 'nearby_detail' | 'itinerary' | 'saved' | 'my_itineraries';
-const SHEET_PEEK = 'calc(40vh)';
-const SHEET_FULL = 'calc(88vh)';
-
+// Sheet snap heights
+const SHEET_COLLAPSED = 52;   // px — just the drag handle + title visible
+const SHEET_HALF      = 0.45; // fraction of viewport
+const SHEET_FULL      = 0.88; // fraction of viewport
+ 
 const NEARBY_DISPLAY: Record<string, { emoji: string; label: string }> = {
   hotel:      { emoji: '\uD83C\uDFE8', label: 'Hotel' },
   attraction: { emoji: '\uD83C\uDFAD', label: 'Attraction' },
   shopping:   { emoji: '\uD83D\uDED2', label: 'Shopping' },
   restaurant: { emoji: '\uD83C\uDF74', label: 'Restaurant' },
 };
-
+ 
 // ── Stable search input — lives OUTSIDE SidebarContent to avoid remounting ──
 function SearchInput({ value, onChange, onClear, onFocus, historyVisible, searchHistory, onApplyHistory, onRemoveHistory, onClearHistory }: {
   value: string;
@@ -86,7 +89,7 @@ function SearchInput({ value, onChange, onClear, onFocus, historyVisible, search
     </div>
   );
 }
-
+ 
 // ── Nearby Drawer ─────────────────────────────────────────────
 function NearbyDrawer({ place, onClose, onAddToItinerary, itineraryStops }: {
   place: NearbyPlace; onClose: () => void;
@@ -136,14 +139,21 @@ function NearbyDrawer({ place, onClose, onAddToItinerary, itineraryStops }: {
     </div>
   );
 }
-
+ 
 // ── Main page ─────────────────────────────────────────────────
-export default function MapPage() {
+function MapPageContent() {
   const { user, token } = useAuth();
-
+ 
+  const searchParams = useSearchParams();
   const [amenities,        setAmenities]        = useState<Amenity[]>([]);
   const [loading,          setLoading]          = useState(true);
-  const [activeCategories, setActiveCategories] = useState<Set<AmenityCategory>>(new Set(ALL_CATEGORIES ?? []));
+  const [activeCategories, setActiveCategories] = useState<Set<AmenityCategory>>(() => {
+    const filter = searchParams.get('filter');
+    if (filter && (ALL_CATEGORIES ?? []).includes(filter as AmenityCategory)) {
+      return new Set<AmenityCategory>([filter as AmenityCategory]);
+    }
+    return new Set(ALL_CATEGORIES ?? []);
+  });
   const [selectedId,       setSelectedId]       = useState<string | null>(null);
   const [search,           setSearch]           = useState('');
   const [debouncedSearch,  setDebouncedSearch]  = useState('');
@@ -153,7 +163,10 @@ export default function MapPage() {
   const [detailNearby,     setDetailNearby]     = useState<NearbyPlace | null>(null);
   const [mapCenter,        setMapCenter]        = useState({ lat: 39.7392, lng: -104.9903 });
   const [filtersOpen,      setFiltersOpen]      = useState(false);
-  const [sheetExpanded,    setSheetExpanded]    = useState(false);
+  const [sheetSnap,        setSheetSnap]        = useState<'collapsed'|'half'|'full'>('collapsed');
+  const sheetDragY        = useRef<number | null>(null);
+  const sheetStartH       = useRef<number>(SHEET_COLLAPSED);
+  const [sheetH,           setSheetH]           = useState(SHEET_COLLAPSED);
   const [savedIds,         setSavedIds]         = useState<Set<string>>(new Set());
   const [savingId,         setSavingId]         = useState<string | null>(null);
   const [itinerarySaving,  setItinerarySaving]  = useState(false);
@@ -163,8 +176,12 @@ export default function MapPage() {
   const [savedItineraries, setSavedItineraries] = useState<SavedItinerary[]>([]);
   const [itinerariesLoading, setItinerariesLoading] = useState(false);
   const [deletingId,       setDeletingId]       = useState<string | null>(null);
-  const historyDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const snapSheet = useCallback((snap: 'collapsed'|'half'|'full') => {
+    setSheetSnap(snap);
+    const vh = window.innerHeight;
+    setSheetH(snap === 'collapsed' ? SHEET_COLLAPSED : snap === 'half' ? Math.round(vh * SHEET_HALF) : Math.round(vh * SHEET_FULL));
+  }, []);
+ 
   // Close history on outside click
   const searchRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -174,39 +191,39 @@ export default function MapPage() {
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
-
+ 
   // Load amenities
   useEffect(() => {
     Promise.all([getAmenities(), Promise.resolve(getMapCenter())]).then(([data, center]) => {
       setAmenities(data); setMapCenter(center); setLoading(false);
     });
   }, []);
-
+ 
   // Load saved items
   useEffect(() => {
     if (!token) { setSavedIds(new Set()); return; }
     savedApi.list(token).then(r => setSavedIds(new Set(r.amenityIds))).catch(() => {});
   }, [token]);
-
+ 
   // Load search history
   useEffect(() => {
     if (!token) { setSearchHistory([]); return; }
     historyApi.list(token).then(setSearchHistory).catch(() => {});
   }, [token]);
-
+ 
   // Load saved itineraries when tab opens
   useEffect(() => {
     if (!token || sidebarMode !== 'my_itineraries') return;
     setItinerariesLoading(true);
     itineraryApi.list(token).then(setSavedItineraries).catch(() => {}).finally(() => setItinerariesLoading(false));
   }, [token, sidebarMode]);
-
+ 
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
-
+ 
   // Record search history
   useEffect(() => {
     if (!token || !debouncedSearch.trim()) return;
@@ -218,7 +235,7 @@ export default function MapPage() {
     }, 1500);
     return () => { if (historyDebounce.current) clearTimeout(historyDebounce.current); };
   }, [debouncedSearch, token]);
-
+ 
   // Derived state
   const categoryCounts = useMemo(() => {
     const counts = {} as Record<AmenityCategory, number>;
@@ -226,7 +243,7 @@ export default function MapPage() {
     amenities.forEach(a => { if (a.category) counts[a.category] = (counts[a.category] ?? 0) + 1; });
     return counts;
   }, [amenities]);
-
+ 
   const filtered = useMemo(() => {
     return amenities.filter(a => {
       if (!activeCategories.has(a.category)) return false;
@@ -238,37 +255,37 @@ export default function MapPage() {
       return true;
     });
   }, [amenities, activeCategories, debouncedSearch]);
-
+ 
   const savedAmenities = useMemo(() => amenities.filter(a => savedIds.has(a.id)), [amenities, savedIds]);
-
+ 
   // Handlers
   const handleOpenDrawer = useCallback((amenity: Amenity) => {
     setDetailAmenity(amenity); setDetailNearby(null);
-    setSelectedId(amenity.id); setSidebarMode('detail'); setSheetExpanded(true);
+    setSelectedId(amenity.id); setSidebarMode('detail'); snapSheet('half');
   }, []);
-
+ 
   const handleOpenNearbyDrawer = useCallback((place: NearbyPlace) => {
     setDetailNearby(place); setDetailAmenity(null);
-    setSidebarMode('nearby_detail'); setSheetExpanded(true);
+    setSidebarMode('nearby_detail'); snapSheet('half');
   }, []);
-
+ 
   const handleSelect = useCallback((amenity: Amenity | null) => {
     setSelectedId(amenity?.id ?? null);
     if (amenity && sidebarMode !== 'itinerary') {
       setDetailAmenity(amenity); setDetailNearby(null);
-      setSidebarMode('detail'); setSheetExpanded(true);
+      setSidebarMode('detail'); snapSheet('half');
     }
   }, [sidebarMode]);
-
+ 
   const addToItinerary = useCallback((amenity: Amenity) => {
     setItineraryStops(prev => prev.find(s => s.amenityId === amenity.id) ? prev : [...prev, { amenityId: amenity.id, amenity }]);
-    setSidebarMode('itinerary'); setSheetExpanded(true);
+    setSidebarMode('itinerary'); snapSheet('half');
   }, []);
-
+ 
   const backToList = useCallback(() => {
     setSidebarMode('list'); setDetailAmenity(null); setDetailNearby(null); setSelectedId(null);
   }, []);
-
+ 
   const toggleSave = useCallback(async (amenity: Amenity) => {
     if (!token) return;
     setSavingId(amenity.id);
@@ -283,7 +300,7 @@ export default function MapPage() {
     } catch { /* silent */ }
     finally { setSavingId(null); }
   }, [token, savedIds]);
-
+ 
   const saveItinerary = useCallback(async (name: string) => {
     if (!token || itineraryStops.length === 0) return;
     setItinerarySaving(true);
@@ -297,7 +314,7 @@ export default function MapPage() {
     } catch { /* silent */ }
     finally { setItinerarySaving(false); }
   }, [token, itineraryStops]);
-
+ 
   const deleteItinerary = useCallback(async (id: string) => {
     if (!token) return;
     setDeletingId(id);
@@ -307,15 +324,15 @@ export default function MapPage() {
     } catch { /* silent */ }
     finally { setDeletingId(null); }
   }, [token]);
-
+ 
   const loadItinerary = useCallback((it: SavedItinerary) => {
     const stops: ItineraryStop[] = it.stops
       .map(s => { const amenity = amenities.find(a => a.id === s.amenityId); return amenity ? { amenityId: s.amenityId, amenity, notes: s.notes ?? undefined, arrivalTime: s.arrivalTime ?? undefined, duration: s.duration ?? undefined } : null; })
       .filter(Boolean) as ItineraryStop[];
     setItineraryStops(stops);
-    setSidebarMode('itinerary'); setSheetExpanded(true);
+    setSidebarMode('itinerary'); snapSheet('half');
   }, [amenities]);
-
+ 
   const applyHistory   = (q: string) => { setSearch(q); setDebouncedSearch(q); setShowHistory(false); };
   const removeHistory  = async (id: string) => {
     if (!token) return;
@@ -327,7 +344,7 @@ export default function MapPage() {
     await historyApi.clearAll(token).catch(() => {});
     setSearchHistory([]);
   };
-
+ 
   const sidebarTitle = () => {
     if (sidebarMode === 'list')           return `${filtered.length} Places`;
     if (sidebarMode === 'saved')          return `Saved (${savedAmenities.length})`;
@@ -337,10 +354,10 @@ export default function MapPage() {
     if (sidebarMode === 'itinerary')      return 'Plan Your Visit';
     return '';
   };
-
+ 
   // ── Render ────────────────────────────────────────────────────
   const isListMode = sidebarMode === 'list' || sidebarMode === 'saved' || sidebarMode === 'my_itineraries';
-
+ 
   const ListPanel = (
     <>
       {/* Search — stable component, never unmounts */}
@@ -356,7 +373,7 @@ export default function MapPage() {
           onRemoveHistory={removeHistory}
           onClearHistory={clearHistory}
         />
-
+ 
         {/* Filters + Saved + Trips row */}
         <div className="flex items-center gap-1 mt-2">
           <button onClick={() => setFiltersOpen(v => !v)}
@@ -385,9 +402,9 @@ export default function MapPage() {
           )}
         </div>
       </div>
-
+ 
       {filtersOpen && <MapFilters active={activeCategories} onChange={(cats) => setActiveCategories(new Set(cats))} counts={categoryCounts} />}
-
+ 
       <div className="px-4 py-1.5 flex items-center justify-between border-b border-zinc-50">
         <span className="text-xs text-zinc-400">
           {loading ? 'Loading…' : sidebarMode === 'saved'
@@ -395,13 +412,13 @@ export default function MapPage() {
             : `${filtered.length} places`}
         </span>
         {itineraryStops.length > 0 && (
-          <button onClick={() => { setSidebarMode('itinerary'); setSheetExpanded(true); }}
+          <button onClick={() => { setSidebarMode('itinerary'); snapSheet('half'); }}
             className="flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:text-blue-700 px-2 py-1 rounded-md hover:bg-blue-50">
             <Route className="w-3.5 h-3.5" /> Itinerary ({itineraryStops.length}) <ChevronRight className="w-3 h-3" />
           </button>
         )}
       </div>
-
+ 
       <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
         {/* Saved tab */}
         {sidebarMode === 'saved' && (
@@ -423,7 +440,7 @@ export default function MapPage() {
                   savingThis={savingId === amenity.id} />
               ))
         )}
-
+ 
         {/* My Itineraries tab */}
         {sidebarMode === 'my_itineraries' && (
           itinerariesLoading
@@ -464,7 +481,7 @@ export default function MapPage() {
                   </div>
                 ))
         )}
-
+ 
         {/* List tab */}
         {sidebarMode === 'list' && (
           loading
@@ -484,9 +501,9 @@ export default function MapPage() {
                 ))
         )}
       </div>
-
+ 
       <div className="p-3 border-t border-zinc-100">
-        <button onClick={() => { setSidebarMode('itinerary'); setSheetExpanded(true); }}
+        <button onClick={() => { setSidebarMode('itinerary'); snapSheet('half'); }}
           className={clsx('w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all',
             itineraryStops.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-zinc-50 text-zinc-400 border border-zinc-100')}>
           <Route className="w-4 h-4" />
@@ -495,7 +512,7 @@ export default function MapPage() {
       </div>
     </>
   );
-
+ 
   const DetailPanel = detailAmenity && (
     <div className="flex flex-col h-full">
       <AmenityDrawer amenity={detailAmenity} onClose={backToList} onAddToItinerary={addToItinerary} itineraryStops={itineraryStops} />
@@ -511,7 +528,7 @@ export default function MapPage() {
       )}
     </div>
   );
-
+ 
   const ItineraryPanelEl = (
     <div className="flex flex-col h-full">
       <ItineraryPanel stops={itineraryStops}
@@ -531,7 +548,7 @@ export default function MapPage() {
       )}
     </div>
   );
-
+ 
   const SidebarInner = (
     <>
       {isListMode && ListPanel}
@@ -542,17 +559,20 @@ export default function MapPage() {
       {sidebarMode === 'itinerary' && ItineraryPanelEl}
     </>
   );
-
+ 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-56px)] overflow-hidden bg-zinc-50 relative">
       {/* Desktop sidebar */}
       <div className="hidden md:flex w-80 shrink-0 flex-col bg-white border-r border-zinc-100 shadow-sm z-10">
         {SidebarInner}
       </div>
-
+ 
       {/* Map + filter chips */}
       <div className="flex-1 relative flex flex-col">
-        <FilterChips activeCategories={activeCategories} onChange={cats => setActiveCategories(new Set(cats))} counts={categoryCounts} />
+        {/* Filter chips — sticky bar above the map, not overlapping */}
+        <div className="bg-white/95 backdrop-blur-sm border-b border-zinc-100 shadow-sm z-20 shrink-0">
+          <FilterChips activeCategories={activeCategories} onChange={cats => setActiveCategories(new Set(cats))} counts={categoryCounts} />
+        </div>
         <div className="flex-1 relative">
           <MapComponent
             amenities={filtered}
@@ -567,24 +587,78 @@ export default function MapPage() {
           />
         </div>
       </div>
-
-      {/* Mobile bottom sheet */}
-      <div className="md:hidden absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-2xl border-t border-zinc-100 flex flex-col transition-all duration-300 ease-out"
-        style={{ height: sheetExpanded ? SHEET_FULL : SHEET_PEEK }}>
-        <div className="flex flex-col items-center pt-2 pb-1 border-b border-zinc-100 shrink-0">
-          <button className="w-10 h-1 bg-zinc-200 rounded-full mb-2" onClick={() => setSheetExpanded(v => !v)} />
-          <div className="flex items-center w-full px-4 pb-1.5">
+ 
+      {/* Mobile: Layers button sits above the bottom sheet so it's never blocked */}
+      <div
+        className="md:hidden absolute z-40 right-3 pointer-events-auto"
+        style={{ bottom: sheetH + 8 }}
+      >
+        <button
+          onClick={() => {
+            // Signal MapComponent to toggle legend — use a custom event
+            window.dispatchEvent(new CustomEvent('toggleMapLegend'));
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/96 backdrop-blur-sm rounded-xl border border-zinc-100 shadow-md text-xs font-semibold text-zinc-700"
+        >
+          <span>🗺️</span> Layers
+        </button>
+      </div>
+ 
+      {/* Mobile bottom sheet — 3 snap points: collapsed / half / full, draggable */}
+      <div
+        className="md:hidden absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-2xl border-t border-zinc-100 flex flex-col"
+        style={{ height: sheetH, transition: sheetDragY.current !== null ? 'none' : 'height 0.3s cubic-bezier(0.32,0.72,0,1)' }}
+      >
+        {/* Drag handle bar — touch here to drag or tap to cycle snaps */}
+        <div
+          className="shrink-0 flex flex-col items-center pt-2 cursor-grab active:cursor-grabbing select-none"
+          onPointerDown={e => {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            sheetDragY.current = e.clientY;
+            sheetStartH.current = sheetH;
+          }}
+          onPointerMove={e => {
+            if (sheetDragY.current === null) return;
+            const delta = sheetDragY.current - e.clientY;
+            const next = Math.max(SHEET_COLLAPSED, Math.min(window.innerHeight * 0.92, sheetStartH.current + delta));
+            setSheetH(next);
+          }}
+          onPointerUp={e => {
+            if (sheetDragY.current === null) return;
+            sheetDragY.current = null;
+            const vh = window.innerHeight;
+            const half = vh * SHEET_HALF;
+            const full = vh * SHEET_FULL;
+            // Snap to nearest point
+            const dCollapsed = Math.abs(sheetH - SHEET_COLLAPSED);
+            const dHalf      = Math.abs(sheetH - half);
+            const dFull      = Math.abs(sheetH - full);
+            if (dCollapsed <= dHalf && dCollapsed <= dFull) snapSheet('collapsed');
+            else if (dHalf <= dFull)                        snapSheet('half');
+            else                                            snapSheet('full');
+          }}
+        >
+          <div className="w-10 h-1 bg-zinc-200 rounded-full mb-2" />
+          <div className="flex items-center w-full px-4 pb-2">
             {!isListMode && (
-              <button onClick={backToList} className="mr-2 text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-0.5">
+              <button onClick={backToList} className="mr-2 text-xs text-zinc-400 flex items-center gap-0.5">
                 <ChevronDown className="w-3.5 h-3.5" /> Back
               </button>
             )}
-            <span className="text-sm font-semibold text-zinc-800 flex-1">{sidebarTitle()}</span>
-            <button onClick={() => setSheetExpanded(v => !v)} className="p-1 text-zinc-400 hover:text-zinc-600 rounded-md">
-              {sheetExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            <span className="text-sm font-semibold text-zinc-800 flex-1 truncate">{sidebarTitle()}</span>
+            {/* Cycle through snaps on tap */}
+            <button
+              onPointerDown={e => e.stopPropagation()}
+              onClick={() => snapSheet(sheetSnap === 'collapsed' ? 'half' : sheetSnap === 'half' ? 'full' : 'collapsed')}
+              className="p-1 text-zinc-400 rounded-md"
+            >
+              {sheetSnap === 'full'
+                ? <ChevronDown className="w-4 h-4" />
+                : <ChevronUp className="w-4 h-4" />}
             </button>
           </div>
         </div>
+ 
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {SidebarInner}
         </div>
@@ -592,7 +666,15 @@ export default function MapPage() {
     </div>
   );
 }
-
+ 
+export default function MapPage() {
+  return (
+    <Suspense>
+      <MapPageContent />
+    </Suspense>
+  );
+}
+ 
 // ── Filter chips (floating above map) ────────────────────────
 function FilterChips({ activeCategories, onChange, counts }: {
   activeCategories: Set<AmenityCategory>;
@@ -605,71 +687,61 @@ function FilterChips({ activeCategories, onChange, counts }: {
   const MOBILE_LIMIT = 4;
   const visibleCats = expanded ? available : available.slice(0, MOBILE_LIMIT);
   const hiddenCount = available.length - MOBILE_LIMIT;
-
+ 
   const toggle = (cat: AmenityCategory) => {
     const next = new Set(activeCategories);
     next.has(cat) ? next.delete(cat) : next.add(cat);
     onChange(next);
   };
-
+ 
   return (
-    <div className="absolute top-3 left-0 right-0 z-20 px-3 pointer-events-none">
-      {/* Desktop: single scrollable row, centered */}
-      <div className="hidden md:flex items-center justify-center gap-2 pointer-events-auto flex-wrap">
-        <button onClick={() => onChange(allOn ? new Set<AmenityCategory>() : new Set(available))}
-          className={clsx('px-4 py-1.5 rounded-full text-xs font-semibold shadow-md border transition-all whitespace-nowrap',
-            allOn ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400')}>
-          All
-        </button>
+    <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto scrollbar-hide">
+      {/* All toggle */}
+      <button onClick={() => onChange(allOn ? new Set<AmenityCategory>() : new Set(available))}
+        className={clsx('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap shrink-0',
+          allOn ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-zinc-400')}>
+        All
+      </button>
+ 
+      {/* Desktop: show all chips */}
+      <div className="hidden md:flex items-center gap-1.5 flex-wrap">
         {available.map(cat => {
           const on  = activeCategories.has(cat);
           const cfg = CATEGORY_CONFIG[cat];
           return (
             <button key={cat} onClick={() => toggle(cat)}
-              className={clsx('px-4 py-1.5 rounded-full text-xs font-semibold shadow-md border transition-all whitespace-nowrap',
-                on ? `${cfg.bg} ${cfg.color} ${cfg.border}` : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400')}>
+              className={clsx('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap',
+                on ? `${cfg.bg} ${cfg.color} ${cfg.border}` : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-zinc-400')}>
               {cfg.label}
-              <span className={clsx('ml-1.5 text-[10px]', on ? 'opacity-60' : 'text-zinc-400')}>{counts[cat]}</span>
+              <span className={clsx('ml-1 text-[10px]', on ? 'opacity-60' : 'text-zinc-400')}>{counts[cat]}</span>
             </button>
           );
         })}
       </div>
-
-      {/* Mobile: first N chips + more button */}
-      <div className="md:hidden flex items-center gap-1.5 pointer-events-auto overflow-x-auto pb-1 scrollbar-hide">
-        <button onClick={() => onChange(allOn ? new Set<AmenityCategory>() : new Set(available))}
-          className={clsx('px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border transition-all whitespace-nowrap shrink-0',
-            allOn ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-700 border-zinc-200')}>
-          All
-        </button>
-        {visibleCats.map(cat => {
+ 
+      {/* Mobile: scrollable, no expand button needed since row scrolls */}
+      <div className="md:hidden flex items-center gap-1.5">
+        {available.map(cat => {
           const on  = activeCategories.has(cat);
           const cfg = CATEGORY_CONFIG[cat];
           return (
             <button key={cat} onClick={() => toggle(cat)}
-              className={clsx('px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border transition-all whitespace-nowrap shrink-0',
-                on ? `${cfg.bg} ${cfg.color} ${cfg.border}` : 'bg-white text-zinc-700 border-zinc-200')}>
+              className={clsx('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all whitespace-nowrap shrink-0',
+                on ? `${cfg.bg} ${cfg.color} ${cfg.border}` : 'bg-zinc-50 text-zinc-600 border-zinc-200')}>
               {cfg.label}
             </button>
           );
         })}
-        {hiddenCount > 0 && (
-          <button onClick={() => setExpanded(v => !v)}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border bg-white text-zinc-600 border-zinc-200 whitespace-nowrap shrink-0 flex items-center gap-1">
-            {expanded ? 'Less' : `+${hiddenCount}`}
-            <ChevronDown className={clsx('w-3 h-3 transition-transform', expanded && 'rotate-180')} />
-          </button>
-        )}
       </div>
     </div>
   );
 }
-
+ 
 // ── Save Itinerary Button ─────────────────────────────────────
 function SaveItineraryButton({ onSave, saving, saved }: { onSave: (name: string) => Promise<void>; saving: boolean; saved: boolean; }) {
   const [naming, setNaming] = useState(false);
   const [name,   setName]   = useState('');
-
+ 
   if (saved) return (
     <div className="flex items-center justify-center gap-2 py-2 text-sm text-green-600 font-medium">
       <BookmarkCheck className="w-4 h-4" /> Itinerary saved!

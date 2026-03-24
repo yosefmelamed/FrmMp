@@ -1,10 +1,10 @@
 'use client';
-
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Amenity, AmenityCategory, NearbyPlace } from '@/types';
 import { CATEGORY_CONFIG } from '@/components/ui/CategoryBadge';
-
+ 
 // ─── Map styles ───────────────────────────────────────────────────────────────
 const MAP_STYLES: any[] = [
   { elementType: 'geometry', stylers: [{ color: '#f8f8f6' }] },
@@ -19,15 +19,16 @@ const MAP_STYLES: any[] = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c8dde8' }] },
   { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
 ];
-
+ 
 // ─── Nearby POI types ─────────────────────────────────────────────────────────
 const NEARBY_TYPES = {
   hotel:      { label: 'Hotels',      emoji: '🏨', color: '#0891b2', googleType: 'lodging' },
   attraction: { label: 'Attractions', emoji: '🎭', color: '#7c3aed', googleType: 'tourist_attraction' },
+  restaurant: { label: 'Restaurants', emoji: '🍴', color: '#b45309', googleType: 'restaurant' },
   shopping:   { label: 'Shopping',    emoji: '🛍️', color: '#be185d', googleType: 'shopping_mall' },
 } as const;
 type NearbyType = keyof typeof NEARBY_TYPES;
-
+ 
 // ─── Eruv boundaries ──────────────────────────────────────────────────────────
 const ERUV_BOUNDARIES: Record<string, { label: string; color: string; coords: { lat: number; lng: number }[] }> = {
   west: {
@@ -54,7 +55,7 @@ const ERUV_BOUNDARIES: Record<string, { label: string; color: string; coords: { 
   },
 };
 type EruvKey = 'west' | 'east' | 'southeast';
-
+ 
 // ─── Community area overlays ──────────────────────────────────────────────────
 const COMMUNITY_AREAS = {
   downtown_denver: {
@@ -108,20 +109,20 @@ const COMMUNITY_AREAS = {
   },
 } as const;
 type CommunityKey = keyof typeof COMMUNITY_AREAS;
-
+ 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getBounds(coords: readonly { lat: number; lng: number }[]) {
   const lats = coords.map(c => c.lat);
   const lngs = coords.map(c => c.lng);
   return { north: Math.max(...lats), south: Math.min(...lats), east: Math.max(...lngs), west: Math.min(...lngs) };
 }
-
+ 
 const MARKER_COLORS: Record<AmenityCategory, string> = {
   synagogue: '#2563eb', kosher_restaurant: '#059669', kosher_grocery: '#16a34a',
   jewish_school: '#7c3aed', mikveh: '#0284c7', jewish_center: '#d97706',
   accommodation: '#4f46e5', cemetery: '#71717a', bakery: '#ea580c', butcher: '#dc2626',
 };
-
+ 
 function buildMarkerSvg(category: AmenityCategory, selected: boolean): string {
   const fill = MARKER_COLORS[category] || '#2563eb';
   const cfg = CATEGORY_CONFIG[category];
@@ -137,7 +138,7 @@ function buildMarkerSvg(category: AmenityCategory, selected: boolean): string {
 </svg>`.trim()
   );
 }
-
+ 
 function buildNearbyMarkerSvg(type: NearbyType): string {
   const cfg = NEARBY_TYPES[type];
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
@@ -149,7 +150,7 @@ function buildNearbyMarkerSvg(type: NearbyType): string {
 </svg>`.trim()
   );
 }
-
+ 
 // ─── Component interface ──────────────────────────────────────────────────────
 interface MapProps {
   amenities: Amenity[];
@@ -162,7 +163,7 @@ interface MapProps {
   onToggleSave?: (amenity: Amenity) => void;
   savedIds?: Set<string>;
 }
-
+ 
 export default function MapComponent({
   amenities = [], center, selectedId, onSelect, onOpenDrawer, onAddToItinerary, onOpenNearbyDrawer,
   onToggleSave, savedIds,
@@ -179,7 +180,7 @@ export default function MapComponent({
   const refetchTimerRef         = useRef<any>(null);
   const activeNearbyTypesRef    = useRef<Set<NearbyType>>(new Set());
   const fetchAllActiveNearbyRef = useRef<((t: NearbyType[]) => Promise<void>) | null>(null);
-
+ 
   const [mapLoaded,          setMapLoaded]          = useState(false);
   const [error,              setError]              = useState<string | null>(null);
   const [visibleEruvs,       setVisibleEruvs]       = useState<Set<EruvKey>>(new Set(['west','east','southeast'] as EruvKey[]));
@@ -191,7 +192,7 @@ export default function MapComponent({
   const [nearbyPlaces,       setNearbyPlaces]       = useState<NearbyPlace[]>([]);
   const [activeNearbyTypes,  setActiveNearbyTypes]  = useState<Set<NearbyType>>(new Set());
   const [loadingNearby,      setLoadingNearby]      = useState<Set<NearbyType>>(new Set());
-
+ 
   // ── fitBounds helper ─────────────────────────────────────────────────────
   const fitToBounds = useCallback((coords: readonly { lat: number; lng: number }[], padding = 60) => {
     if (!mapInstance.current) return;
@@ -202,10 +203,10 @@ export default function MapComponent({
       padding
     );
   }, []);
-
+ 
   const fitToEruv      = useCallback((k: EruvKey)      => fitToBounds(ERUV_BOUNDARIES[k].coords),      [fitToBounds]);
   const fitToCommunity = useCallback((k: CommunityKey) => fitToBounds(COMMUNITY_AREAS[k].coords, 80), [fitToBounds]);
-
+ 
   // ── Init map ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -243,18 +244,18 @@ export default function MapComponent({
             const eruv = ERUV_BOUNDARIES.east;
             const isVisible = visibleEruvs.has('east');
             const handler = () => { setFocusedEruv('east'); setLegendTab('eruv'); setLegendOpen(true); };
-
+ 
             const features: any[] = data?.features ?? [];
             const lineFeatures = features.filter((f: any) => f.geometry?.type === 'LineString');
-
+ 
             // Collect all coords across all segments for the fill polygon + fitBounds
             const allCoords: { lat: number; lng: number }[] = [];
             const polylines: any[] = [];
-
+ 
             lineFeatures.forEach((f: any) => {
               const segCoords = f.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
               allCoords.push(...segCoords);
-
+ 
               // One dashed polyline per segment
               const pl = new g.Polyline({
                 path: segCoords,
@@ -269,10 +270,10 @@ export default function MapComponent({
               pl.addListener('click', handler);
               polylines.push(pl);
             });
-
+ 
             // Populate coords for fitToEruv / legend
             ERUV_BOUNDARIES.east.coords = allCoords;
-
+ 
             // Transparent fill polygon (convex hull approximation = just all coords)
             const fillPoly = new g.Polygon({
               paths: allCoords,
@@ -283,7 +284,7 @@ export default function MapComponent({
               clickable: true, zIndex: 2,
             });
             fillPoly.addListener('click', handler);
-
+ 
             // Store fill poly under 'east' for visibility toggling
             eruvPolygonsRef.current.set('east', fillPoly);
             // Store all polylines — we extend the ref with indexed keys
@@ -292,7 +293,7 @@ export default function MapComponent({
             });
           })
           .catch(e => console.warn('[Eruv] east-eruv.geojson failed to load:', e));
-
+ 
         // Load SE eruv boundary from GeoJSON — same pattern as east
         fetch('/se-eruv.geojson')
           .then(r => r.json())
@@ -302,15 +303,15 @@ export default function MapComponent({
             const eruv = ERUV_BOUNDARIES.southeast;
             const isVisible = visibleEruvs.has('southeast');
             const handler = () => { setFocusedEruv('southeast'); setLegendTab('eruv'); setLegendOpen(true); };
-
+ 
             const features: any[] = data?.features ?? [];
             const lineFeatures = features.filter((f: any) => f.geometry?.type === 'LineString');
             const allCoords: { lat: number; lng: number }[] = [];
-
+ 
             lineFeatures.forEach((f: any) => {
               const segCoords = f.geometry.coordinates.map(([lng, lat]: number[]) => ({ lat, lng }));
               allCoords.push(...segCoords);
-
+ 
               const pl = new g.Polyline({
                 path: segCoords,
                 map: mapInstance.current,
@@ -322,9 +323,9 @@ export default function MapComponent({
               pl.addListener('click', handler);
               eruvPolylinesRef.current.set(('southeast_' + allCoords.length) as any, pl);
             });
-
+ 
             ERUV_BOUNDARIES.southeast.coords = allCoords;
-
+ 
             const fillPoly = new g.Polygon({
               paths: allCoords, map: mapInstance.current,
               visible: isVisible,
@@ -340,7 +341,7 @@ export default function MapComponent({
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
+ 
   // ── Draw eruv polygons ────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
@@ -386,7 +387,7 @@ export default function MapComponent({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded]);
-
+ 
   // ── Draw community polygons ───────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
@@ -407,40 +408,40 @@ export default function MapComponent({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded]);
-
+ 
   // ── Sync eruv visibility ──────────────────────────────────────────────────
   useEffect(() => {
     eruvPolygonsRef.current.forEach((p, k) => p.setVisible(visibleEruvs.has(k)));
     eruvPolylinesRef.current.forEach((p, k) => p.setVisible(visibleEruvs.has(k)));
   }, [visibleEruvs]);
-
+ 
   // ── Sync community visibility + focus style ───────────────────────────────
   useEffect(() => {
     communityPolysRef.current.forEach(p => p.setVisible(showCommunities));
   }, [showCommunities]);
-
+ 
   useEffect(() => {
     communityPolysRef.current.forEach((poly, key) => {
       const f = key === focusedCommunity;
       poly.setOptions({ strokeOpacity: f ? 0.9 : 0.45, strokeWeight: f ? 2.5 : 1.5, fillOpacity: f ? 0.14 : 0.06 });
     });
   }, [focusedCommunity]);
-
-
+ 
+ 
   // Fetch nearby places for ALL active types using current map viewport bounds
   const fetchAllActiveNearby = useCallback(async (typesToFetch: NearbyType[]) => {
     if (!mapInstance.current || typesToFetch.length === 0) return;
     const gm = (window as any).google.maps;
     const { Place } = await gm.importLibrary('places');
-
+ 
     // Use the actual visible map bounds as the search rectangle
     const bounds = mapInstance.current.getBounds();
     if (!bounds) return;
-
+ 
     const ne = bounds.getNorthEast();
     const sw = bounds.getSouthWest();
     const mapCenter = mapInstance.current.getCenter();
-
+ 
     // Compute radius from viewport — haversine distance from center to NE corner
     // Places API (New) caps radius at 50,000m; we also cap at 25km to avoid huge searches
     const R = 6371000;
@@ -448,7 +449,7 @@ export default function MapComponent({
     const dLng = (ne.lng() - sw.lng()) * Math.PI / 180;
     const diagMeters = R * Math.sqrt(Math.pow(dLat, 2) + Math.pow(dLng * Math.cos(mapCenter.lat() * Math.PI / 180), 2));
     const radius = Math.min(Math.round(diagMeters / 2), 25000);
-
+ 
     // Clear existing markers for these types so stale out-of-viewport pins are removed
     nearbyMarkersRef.current.forEach((marker, id) => {
       const existingType = (marker as any).__nearbyType as NearbyType | undefined;
@@ -457,7 +458,7 @@ export default function MapComponent({
         nearbyMarkersRef.current.delete(id);
       }
     });
-
+ 
     await Promise.all(typesToFetch.map(async (type) => {
       setLoadingNearby(prev => new Set(Array.from(prev).concat(type) as NearbyType[]));
       try {
@@ -471,7 +472,7 @@ export default function MapComponent({
           includedTypes: [NEARBY_TYPES[type].googleType],
           maxResultCount: 20,
         };
-
+ 
         const { places: results } = await Place.searchNearby(request);
         const mapped: NearbyPlace[] = (results || []).map((p: any) => ({
           id: p.id,
@@ -486,7 +487,7 @@ export default function MapComponent({
           isOpen: p.regularOpeningHours?.isOpen?.(),
           photoUrl: p.photos?.[0]?.getURI?.({ maxWidth: 400 }),
         }));
-
+ 
         setNearbyPlaces(prev => [...prev.filter(x => x.category !== type), ...mapped]);
       } catch (err) {
         console.error('[Nearby] error fetching', type, err);
@@ -495,12 +496,12 @@ export default function MapComponent({
       }
     }));
   }, []);
-
+ 
   // Keep refs in sync so idle listener always has latest values
   // Must be AFTER fetchAllActiveNearby is defined to avoid "before initialization" error
   useEffect(() => { activeNearbyTypesRef.current = activeNearbyTypes; }, [activeNearbyTypes]);
   useEffect(() => { fetchAllActiveNearbyRef.current = fetchAllActiveNearby; }, [fetchAllActiveNearby]);
-
+ 
   // Toggle a nearby type on/off
   const toggleNearbyType = useCallback((type: NearbyType) => {
     const isOn = activeNearbyTypes.has(type);
@@ -520,15 +521,15 @@ export default function MapComponent({
       fetchAllActiveNearby([type]);
     }
   }, [activeNearbyTypes, fetchAllActiveNearby]);
-
+ 
   // Re-fetch all active types when map becomes idle after pan/zoom (debounced 600ms)
   // Uses refs so the listener never has a stale closure
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
     const gm = (window as any).google.maps;
-
+ 
     if (idleListenerRef.current) gm.event.removeListener(idleListenerRef.current);
-
+ 
     idleListenerRef.current = mapInstance.current.addListener('idle', () => {
       const activeTypes = activeNearbyTypesRef.current;
       if (activeTypes.size === 0) return;
@@ -537,19 +538,19 @@ export default function MapComponent({
         fetchAllActiveNearbyRef.current?.(Array.from(activeTypes) as NearbyType[]);
       }, 600);
     });
-
+ 
     return () => {
       if (idleListenerRef.current) gm.event.removeListener(idleListenerRef.current);
       clearTimeout(refetchTimerRef.current);
     };
   }, [mapLoaded]); // intentionally only depends on mapLoaded — uses refs for the rest
-
-
+ 
+ 
   // ── Sync nearby markers ───────────────────────────────────────────────────
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
     const gm = (window as any).google.maps;
-
+ 
     // Remove hidden-type markers
     nearbyMarkersRef.current.forEach((marker, id) => {
       const place = nearbyPlaces.find(p => p.id === id);
@@ -557,7 +558,7 @@ export default function MapComponent({
         marker.setMap(null); nearbyMarkersRef.current.delete(id);
       }
     });
-
+ 
     // Add visible-type markers
     nearbyPlaces
       .filter(p => activeNearbyTypes.has(p.category as NearbyType))
@@ -583,7 +584,7 @@ export default function MapComponent({
         nearbyMarkersRef.current.set(place.id, marker);
       });
   }, [nearbyPlaces, activeNearbyTypes, mapLoaded]);
-
+ 
   // ── Info window: community amenity ────────────────────────────────────────
   const buildInfoContent = useCallback((amenity: Amenity) => {
     const cfg     = CATEGORY_CONFIG[amenity.category];
@@ -617,7 +618,7 @@ export default function MapComponent({
     style="width:100%;padding:5px 0;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;">+ Add to Itinerary</button>
 </div>`;
   }, [savedIds]);
-
+ 
   // ── Info window: nearby place ─────────────────────────────────────────────
   const buildNearbyInfoContent = useCallback((place: NearbyPlace) => {
     const cfg = NEARBY_TYPES[place.category as NearbyType];
@@ -647,7 +648,7 @@ export default function MapComponent({
   </div>
 </div>`;
   }, []);
-
+ 
   // ── Global callbacks ──────────────────────────────────────────────────────
   useEffect(() => {
     (window as any).__mapOpenDrawer = (id: string) => {
@@ -656,7 +657,7 @@ export default function MapComponent({
     };
     return () => { delete (window as any).__mapOpenDrawer; };
   }, [amenities, onOpenDrawer]);
-
+ 
   useEffect(() => {
     (window as any).__mapToggleSave = (id: string) => {
       const a = (amenities ?? []).find(x => x.id === id);
@@ -664,7 +665,7 @@ export default function MapComponent({
     };
     return () => { delete (window as any).__mapToggleSave; };
   }, [amenities, onToggleSave]);
-
+ 
   useEffect(() => {
     (window as any).__mapAddToItinerary = (id: string) => {
       const a = (amenities ?? []).find(x => x.id === id);
@@ -672,7 +673,7 @@ export default function MapComponent({
     };
     return () => { delete (window as any).__mapAddToItinerary; };
   }, [amenities, onAddToItinerary]);
-
+ 
   useEffect(() => {
     (window as any).__addNearbyToItinerary = (placeId: string) => {
       const place = nearbyPlaces.find(p => p.id === placeId);
@@ -695,7 +696,7 @@ export default function MapComponent({
     };
     return () => { delete (window as any).__addNearbyToItinerary; };
   }, [nearbyPlaces, onAddToItinerary]);
-
+ 
   useEffect(() => {
     (window as any).__openNearbyDrawer = (placeId: string) => {
       const place = nearbyPlaces.find(p => p.id === placeId);
@@ -703,9 +704,9 @@ export default function MapComponent({
     };
     return () => { delete (window as any).__openNearbyDrawer; };
   }, [nearbyPlaces, onOpenNearbyDrawer]);
-
+ 
   const openInfoAmenityRef = useRef<Amenity | null>(null);
-
+ 
   // ── Sync community amenity markers ────────────────────────────────────────
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
@@ -732,7 +733,7 @@ export default function MapComponent({
       markersRef.current.set(amenity.id, m);
     });
   }, [amenities, mapLoaded, selectedId, onSelect, buildInfoContent, savedIds]);
-
+ 
   // ── Refresh open info window when savedIds changes (heart icon update) ────
   useEffect(() => {
     if (!openInfoAmenityRef.current || !infoWindowRef.current) return;
@@ -742,13 +743,13 @@ export default function MapComponent({
       infoWindowRef.current.setContent(buildInfoContent(amenity));
     } catch { /* info window may be closed */ }
   }, [savedIds, buildInfoContent]);
-
+ 
   useEffect(() => {
     if (!mapLoaded || !selectedId || !mapInstance.current) return;
     const a = (amenities ?? []).find(x => x.id === selectedId);
     if (a) { mapInstance.current.panTo({ lat: a.lat, lng: a.lng }); mapInstance.current.setZoom(15); }
   }, [selectedId, mapLoaded, amenities]);
-
+ 
   useEffect(() => {
     if (!mapLoaded || !mapInstance.current) return;
     const gm = (window as any).google.maps;
@@ -758,7 +759,7 @@ export default function MapComponent({
     });
     return () => gm.event.removeListener(l);
   }, [mapLoaded, onSelect]);
-
+ 
   // ── Legend handlers ───────────────────────────────────────────────────────
   const handleEruvLegend = useCallback((key: EruvKey) => {
     const on = visibleEruvs.has(key);
@@ -766,120 +767,118 @@ export default function MapComponent({
     else if (focusedEruv === key) { setVisibleEruvs(prev => { const n = new Set(prev); n.delete(key); return n; }); setFocusedEruv(null); }
     else { fitToEruv(key); setFocusedEruv(key); }
   }, [visibleEruvs, focusedEruv, fitToEruv]);
-
+ 
   const handleCommunityLegend = useCallback((key: CommunityKey) => {
     if (!showCommunities) setShowCommunities(true);
     if (focusedCommunity === key) { setFocusedCommunity(null); fitToBounds([{ lat: 38.7, lng: -105.1 }, { lat: 40.3, lng: -104.65 }], 40); }
     else { setFocusedCommunity(key); fitToCommunity(key); }
   }, [showCommunities, focusedCommunity, fitToCommunity, fitToBounds]);
-
+ 
+  // Listen for external toggle (from the Layers button in map/page.tsx)
+  useEffect(() => {
+    const handler = () => setLegendOpen(v => !v);
+    window.addEventListener('toggleMapLegend', handler);
+    return () => window.removeEventListener('toggleMapLegend', handler);
+  }, []);
+ 
   if (error === 'no-key') return <MapPlaceholder amenities={amenities} onSelect={onSelect} onOpenDrawer={onOpenDrawer} onAddToItinerary={onAddToItinerary} />;
   if (error) return <div className="w-full h-full flex items-center justify-center bg-zinc-50"><p className="text-zinc-400 text-sm">Failed to load Google Maps.</p></div>;
-
-  // ── Legend JSX (shared structure) ─────────────────────────────────────────
-  const LegendPanel = () => (
-    <div className={`mt-2 sm:mt-0 bg-white/96 backdrop-blur-sm rounded-xl border border-zinc-100 shadow-md overflow-hidden sm:block w-[196px] ${legendOpen ? 'block' : 'hidden sm:block'}`}>
-      {/* Tabs */}
-      <div className="flex border-b border-zinc-100">
-        {(['eruv','community','nearby'] as const).map(t => (
-          <button key={t} onClick={() => setLegendTab(t)}
-            className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wide transition-colors ${legendTab===t ? 'text-blue-600 border-b-2 border-blue-600 -mb-px bg-blue-50/40' : 'text-zinc-400 hover:text-zinc-600'}`}>
-            {t === 'eruv' ? 'Eruv' : t === 'community' ? 'Areas' : 'Nearby'}
-          </button>
-        ))}
-      </div>
-
-      {/* Eruv tab */}
-      {legendTab === 'eruv' && (
-        <div className="p-2 space-y-0.5">
-          {(Object.keys(ERUV_BOUNDARIES) as EruvKey[]).map(key => {
-            const eruv = ERUV_BOUNDARIES[key]; const on = visibleEruvs.has(key); const foc = focusedEruv === key;
-            return (
-              <button key={key} onClick={() => handleEruvLegend(key)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all ${foc ? 'bg-zinc-50' : 'hover:bg-zinc-50'}`}>
-                <div className="flex gap-0.5 shrink-0">{[0,1,2,3].map(i => <div key={i} className="h-0.5 w-2 rounded-full" style={{ backgroundColor: eruv.color, opacity: on ? 1 : 0.2 }}/>)}</div>
-                <span className={`text-xs font-medium text-left flex-1 leading-tight ${on ? 'text-zinc-700' : 'text-zinc-300'}`}>{eruv.label}</span>
-                <span className="text-[10px] shrink-0" style={{ color: eruv.color }}>{on && !foc && '→'}{on && foc && '✓'}</span>
-              </button>
-            );
-          })}
-          <p className="text-[9px] text-zinc-300 px-2 pt-1 pb-0.5">Approx. — verify with authority.</p>
-        </div>
-      )}
-
-      {/* Community tab */}
-      {legendTab === 'community' && (
-        <div className="p-2">
-          <button onClick={() => { setShowCommunities(v => !v); setFocusedCommunity(null); }}
-            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-zinc-50 mb-1 pb-2 border-b border-zinc-50">
-            <div className={`w-3 h-3 rounded-sm border-2 shrink-0 transition-colors ${showCommunities ? 'bg-zinc-700 border-zinc-700' : 'border-zinc-300'}`}/>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Show all areas</span>
-          </button>
-          <div className="space-y-0.5">
-            {(Object.keys(COMMUNITY_AREAS) as CommunityKey[]).map(key => {
-              const area = COMMUNITY_AREAS[key]; const foc = focusedCommunity === key;
-              return (
-                <button key={key} onClick={() => handleCommunityLegend(key)} disabled={!showCommunities}
-                  className={`flex items-start gap-2 w-full px-2 py-1.5 rounded-lg text-left transition-all ${foc ? 'bg-zinc-50' : 'hover:bg-zinc-50'} ${!showCommunities ? 'opacity-40' : ''}`}>
-                  <div className="w-2.5 h-2.5 rounded-sm shrink-0 mt-0.5" style={{ backgroundColor: area.color, opacity: 0.75 }}/>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-semibold leading-tight truncate ${foc ? 'text-zinc-800' : 'text-zinc-600'}`}>{area.label}</p>
-                    <p className="text-[10px] text-zinc-400 truncate leading-tight">{area.sublabel}</p>
-                  </div>
-                  <span className="text-[10px] shrink-0 mt-0.5" style={{ color: area.color }}>{foc ? '✓' : '→'}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[9px] text-zinc-300 px-2 pt-1.5">Click area or legend to zoom.</p>
-        </div>
-      )}
-
-      {/* Nearby tab */}
-      {legendTab === 'nearby' && (
-        <div className="p-2 space-y-0.5">
-          {(Object.keys(NEARBY_TYPES) as NearbyType[]).map(type => {
-            const cfg = NEARBY_TYPES[type];
-            const on = activeNearbyTypes.has(type);
-            const loading = loadingNearby.has(type);
-            const count = nearbyPlaces.filter(p => p.category === type).length;
-            return (
-              <button key={type} onClick={() => toggleNearbyType(type)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all ${on ? 'bg-zinc-50' : 'hover:bg-zinc-50'}`}>
-                <span className="text-base shrink-0">{cfg.emoji}</span>
-                <span className={`text-xs font-medium flex-1 text-left leading-tight ${on ? 'text-zinc-700' : 'text-zinc-400'}`}>
-                  {cfg.label}
-                  {on && count > 0 && <span className="ml-1 text-zinc-300 text-[10px]">({count})</span>}
-                </span>
-                {loading
-                  ? <div className="w-3.5 h-3.5 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin shrink-0"/>
-                  : <div className={`w-3.5 h-3.5 rounded-sm border-2 shrink-0 transition-all ${on ? 'border-transparent' : 'border-zinc-200'}`}
-                      style={on ? { backgroundColor: cfg.color } : {}}/>
-                }
-              </button>
-            );
-          })}
-          <p className="text-[9px] text-zinc-300 px-2 pt-1 pb-0.5 leading-relaxed">Results within 5km of map center.</p>
-        </div>
-      )}
-    </div>
-  );
-
+ 
+ 
   return (
     <div className="relative w-full h-full">
       <div ref={mapRef} className="w-full h-full" />
-
-      {mapLoaded && (
-        <div className="absolute top-3 right-3 z-10">
-          <button onClick={() => setLegendOpen(v => !v)}
-            className="sm:hidden flex items-center gap-2 px-3 py-2 bg-white/96 backdrop-blur-sm rounded-xl border border-zinc-100 shadow-md text-xs font-semibold text-zinc-700">
-            <span>🗺️</span> Layers
-            <span className={`text-zinc-400 transition-transform duration-200 ${legendOpen ? 'rotate-180' : ''}`}>▾</span>
-          </button>
-          <LegendPanel />
+ 
+      {/* Legend — bottom-right on desktop, toggled via external button on mobile */}
+      <div className="absolute bottom-6 right-3 z-10 flex flex-col items-end gap-1">
+        {/* Panel — always visible on desktop (sm:block), toggled on mobile */}
+        <div className={`bg-white/96 backdrop-blur-sm rounded-xl border border-zinc-100 shadow-md overflow-hidden w-[196px] ${legendOpen ? 'block' : 'hidden sm:block'}`}>
+          {/* Tabs */}
+          <div className="flex border-b border-zinc-100">
+            {(['eruv','community','nearby'] as const).map(t => (
+              <button key={t} onClick={() => setLegendTab(t)}
+                className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wide transition-colors ${legendTab===t ? 'text-blue-600 border-b-2 border-blue-600 -mb-px bg-blue-50/40' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                {t === 'eruv' ? 'Eruv' : t === 'community' ? 'Areas' : 'Nearby'}
+              </button>
+            ))}
+          </div>
+ 
+          {/* Eruv tab */}
+          {legendTab === 'eruv' && (
+            <div className="p-2 space-y-0.5">
+              {(Object.keys(ERUV_BOUNDARIES) as EruvKey[]).map(key => {
+                const eruv = ERUV_BOUNDARIES[key]; const on = visibleEruvs.has(key); const foc = focusedEruv === key;
+                return (
+                  <button key={key} onClick={() => handleEruvLegend(key)}
+                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all ${foc ? 'bg-zinc-50' : 'hover:bg-zinc-50'}`}>
+                    <div className="flex gap-0.5 shrink-0">{[0,1,2,3].map(i => <div key={i} className="h-0.5 w-2 rounded-full" style={{ backgroundColor: eruv.color, opacity: on ? 1 : 0.2 }}/>)}</div>
+                    <span className={`text-xs font-medium text-left flex-1 leading-tight ${on ? 'text-zinc-700' : 'text-zinc-300'}`}>{eruv.label}</span>
+                    <span className="text-[10px] shrink-0" style={{ color: eruv.color }}>{on && !foc && '→'}{on && foc && '✓'}</span>
+                  </button>
+                );
+              })}
+              <p className="text-[9px] text-zinc-300 px-2 pt-1 pb-0.5">Approx. — verify with authority.</p>
+            </div>
+          )}
+ 
+          {/* Community tab */}
+          {legendTab === 'community' && (
+            <div className="p-2">
+              <button onClick={() => { setShowCommunities(v => !v); setFocusedCommunity(null); }}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-zinc-50 mb-1 pb-2 border-b border-zinc-50">
+                <div className={`w-3 h-3 rounded-sm border-2 shrink-0 transition-colors ${showCommunities ? 'bg-zinc-700 border-zinc-700' : 'border-zinc-300'}`}/>
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wide">Show all areas</span>
+              </button>
+              <div className="space-y-0.5">
+                {(Object.keys(COMMUNITY_AREAS) as CommunityKey[]).map(key => {
+                  const area = COMMUNITY_AREAS[key]; const foc = focusedCommunity === key;
+                  return (
+                    <button key={key} onClick={() => handleCommunityLegend(key)} disabled={!showCommunities}
+                      className={`flex items-start gap-2 w-full px-2 py-1.5 rounded-lg text-left transition-all ${foc ? 'bg-zinc-50' : 'hover:bg-zinc-50'} ${!showCommunities ? 'opacity-40' : ''}`}>
+                      <div className="w-2.5 h-2.5 rounded-sm shrink-0 mt-0.5" style={{ backgroundColor: area.color, opacity: 0.75 }}/>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold leading-tight truncate ${foc ? 'text-zinc-800' : 'text-zinc-600'}`}>{area.label}</p>
+                        <p className="text-[10px] text-zinc-400 truncate leading-tight">{area.sublabel}</p>
+                      </div>
+                      <span className="text-[10px] shrink-0 mt-0.5" style={{ color: area.color }}>{foc ? '✓' : '→'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[9px] text-zinc-300 px-2 pt-1.5">Click area or legend to zoom.</p>
+            </div>
+          )}
+ 
+          {/* Nearby tab */}
+          {legendTab === 'nearby' && (
+            <div className="p-2 space-y-0.5">
+              {(Object.keys(NEARBY_TYPES) as NearbyType[]).map(type => {
+                const cfg = NEARBY_TYPES[type];
+                const on = activeNearbyTypes.has(type);
+                const loading = loadingNearby.has(type);
+                const count = nearbyPlaces.filter(p => p.category === type).length;
+                return (
+                  <button key={type} onClick={() => toggleNearbyType(type)}
+                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all ${on ? 'bg-zinc-50' : 'hover:bg-zinc-50'}`}>
+                    <span className="text-base shrink-0">{cfg.emoji}</span>
+                    <span className={`text-xs font-medium flex-1 text-left leading-tight ${on ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                      {cfg.label}
+                      {on && count > 0 && <span className="ml-1 text-zinc-300 text-[10px]">({count})</span>}
+                    </span>
+                    {loading
+                      ? <div className="w-3.5 h-3.5 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin shrink-0"/>
+                      : <div className={`w-3.5 h-3.5 rounded-sm border-2 shrink-0 transition-all ${on ? 'border-transparent' : 'border-zinc-200'}`}
+                          style={on ? { backgroundColor: cfg.color } : {}}/>
+                    }
+                  </button>
+                );
+              })}
+              <p className="text-[9px] text-zinc-300 px-2 pt-1 pb-0.5 leading-relaxed">Results within 5km of map center.</p>
+            </div>
+          )}
         </div>
-      )}
-
+      </div>
+ 
       {!mapLoaded && (
         <div className="absolute inset-0 bg-zinc-50 flex items-center justify-center">
           <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"/>
@@ -888,7 +887,7 @@ export default function MapComponent({
     </div>
   );
 }
-
+ 
 // ─── No-key placeholder ───────────────────────────────────────────────────────
 function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinerary }: {
   amenities: Amenity[];
@@ -903,9 +902,9 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
   const [focusedCommunity,  setFocusedCommunity]  = useState<CommunityKey | null>(null);
   const [legendTab,         setLegendTab]         = useState<'eruv'|'community'|'nearby'>('eruv');
   const [legendOpen,        setLegendOpen]        = useState(false);
-
+ 
   const positions = [[55,55],[38,45],[20,35],[48,28],[62,40],[72,60],[30,68],[50,72],[65,25],[25,58],[42,80],[78,45],[35,20],[60,78],[15,50],[80,30],[45,62],[70,15]];
-
+ 
   const handleEruvLegend = (k: EruvKey) => {
     const on = visibleEruvs.has(k);
     if (!on) { setVisibleEruvs(p => new Set(Array.from(p).concat(k) as EruvKey[])); setFocusedEruv(k); }
@@ -916,7 +915,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
     if (!showCommunities) setShowCommunities(true);
     setFocusedCommunity(p => p === k ? null : k);
   };
-
+ 
   const communityShapes = [
     { key: 'downtown_denver' as CommunityKey, points: '12%,22% 62%,22% 62%,58% 12%,58%',    color: '#b45309' },
     { key: 'south_metro'     as CommunityKey, points: '12%,58% 70%,58% 70%,90% 12%,90%',    color: '#0e7490' },
@@ -930,7 +929,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
     { key: 'east'      as EruvKey, points: '42%,23% 72%,23% 72%,60% 42%,60%',         color: '#0369a1' },
     { key: 'southeast' as EruvKey, points: '50%,58% 75%,58% 75%,80% 50%,80%',         color: '#047857' },
   ];
-
+ 
   return (
     <div className="relative w-full h-full bg-[#f8f8f6] overflow-hidden select-none">
       <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
@@ -954,7 +953,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
             style={{ cursor:'pointer' }} onClick={() => handleEruvLegend(key)}/>
         ))}
       </svg>
-
+ 
       {(amenities ?? []).slice(0, 16).map((amenity, i) => {
         const cfg = CATEGORY_CONFIG[amenity.category]; const pos = positions[i]??[50,50]; const isHov = hoveredId===amenity.id;
         return (
@@ -975,7 +974,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
           </div>
         );
       })}
-
+ 
       {/* Legend */}
       <div className="absolute top-3 right-3 z-10">
         <button onClick={() => setLegendOpen(v => !v)}
@@ -1048,7 +1047,7 @@ function MapPlaceholder({ amenities = [], onSelect, onOpenDrawer, onAddToItinera
           )}
         </div>
       </div>
-
+ 
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
         <div className="bg-white/90 backdrop-blur-sm border border-amber-100 text-amber-700 px-4 py-2 rounded-xl shadow-sm text-xs font-medium flex items-center gap-2 whitespace-nowrap">
           ⚠️ Add <code className="bg-amber-50 px-1 rounded font-mono">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> to enable the live map
