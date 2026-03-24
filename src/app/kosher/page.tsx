@@ -1,6 +1,7 @@
 'use client';
-
-import { useState, useEffect, useMemo } from 'react';
+ 
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getKosherFood, getKosherResources } from '@/lib/api';
 import type { Amenity, AmenityCategory, KosherResource } from '@/types';
 import AmenityCard from '@/components/ui/AmenityCard';
@@ -8,7 +9,7 @@ import { CATEGORY_CONFIG } from '@/components/ui/CategoryBadge';
 import { Search, ExternalLink, ChevronRight, X, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
-
+ 
 const TABS: { id: string; label: string; emoji: string; cats: AmenityCategory[] }[] = [
   { id: 'all',         label: 'All',         emoji: '🍴', cats: ['kosher_restaurant','kosher_grocery','bakery','butcher'] },
   { id: 'restaurants', label: 'Restaurants', emoji: '🍽️', cats: ['kosher_restaurant'] },
@@ -16,19 +17,20 @@ const TABS: { id: string; label: string; emoji: string; cats: AmenityCategory[] 
   { id: 'bakery',      label: 'Bakeries',    emoji: '🥐', cats: ['bakery'] },
   { id: 'butcher',     label: 'Butchers',    emoji: '🥩', cats: ['butcher'] },
 ];
-
+ 
 const CERTS = ['All', 'Scroll K', 'OU', 'Multiple'];
 const PRICES = ['All', '$', '$$', '$$$', '$$$$'];
-
-export default function KosherPage() {
+ 
+function KosherPageContent() {
+  const searchParams = useSearchParams();
   const [amenities, setAmenities]   = useState<Amenity[]>([]);
   const [resources, setResources]   = useState<KosherResource[]>([]);
   const [loading, setLoading]       = useState(true);
-  const [tab, setTab]               = useState('all');
+  const [tab, setTab]               = useState(() => searchParams.get('tab') ?? 'all');
   const [cert, setCert]             = useState('All');
   const [price, setPrice]           = useState('All');
   const [search, setSearch]         = useState('');
-
+ 
   useEffect(() => {
     Promise.all([getKosherFood(), getKosherResources()]).then(([food, res]) => {
       setAmenities(food);
@@ -36,9 +38,15 @@ export default function KosherPage() {
       setLoading(false);
     });
   }, []);
-
+ 
+  // Sync tab when navigating from home page links
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && TABS.some(x => x.id === t)) setTab(t);
+  }, [searchParams]);
+ 
   const activeTab = TABS.find(t => t.id === tab)!;
-
+ 
   const filtered = useMemo(() => {
     return amenities.filter(a => {
       if (!activeTab.cats.includes(a.category)) return false;
@@ -56,15 +64,15 @@ export default function KosherPage() {
       return true;
     });
   }, [amenities, activeTab, cert, price, search]);
-
+ 
   const cuisines = useMemo(
     () => Array.from(new Set(amenities.filter(a => a.cuisine).map(a => a.cuisine!))),
     [amenities]
   );
-
+ 
   const tabCount = (t: typeof TABS[0]) =>
     amenities.filter(a => t.cats.includes(a.category)).length;
-
+ 
   return (
     <div className="min-h-screen bg-white">
       {/* Page header */}
@@ -79,7 +87,7 @@ export default function KosherPage() {
               <p className="text-zinc-500 text-sm">
                 Certified restaurants, groceries, bakeries & butchers in Denver
               </p>
-
+ 
               {/* Info pills */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {[
@@ -94,14 +102,14 @@ export default function KosherPage() {
                 ))}
               </div>
             </div>
-
+ 
             <Link href="/map"
               className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl border border-blue-100 hover:bg-blue-100 transition-colors shrink-0">
               <MapPin className="w-4 h-4" />
               View on Map
             </Link>
           </div>
-
+ 
           {/* Tabs */}
           <div className="flex gap-0.5 mt-6 -mb-px overflow-x-auto">
             {TABS.map(t => (
@@ -121,7 +129,7 @@ export default function KosherPage() {
           </div>
         </div>
       </div>
-
+ 
       <div className="max-w-7xl mx-auto px-5 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* ── Main content ── */}
@@ -139,12 +147,12 @@ export default function KosherPage() {
                   </button>
                 )}
               </div>
-
+ 
               <select value={cert} onChange={e => setCert(e.target.value)}
                 className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 {CERTS.map(c => <option key={c} value={c}>{c === 'All' ? 'Any certification' : c}</option>)}
               </select>
-
+ 
               {tab === 'restaurants' && (
                 <select value={price} onChange={e => setPrice(e.target.value)}
                   className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -152,11 +160,11 @@ export default function KosherPage() {
                 </select>
               )}
             </div>
-
+ 
             <p className="text-xs text-zinc-400 mb-4">
               {loading ? 'Loading…' : `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`}
             </p>
-
+ 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-40 rounded-xl" />)}
@@ -173,7 +181,7 @@ export default function KosherPage() {
               </div>
             )}
           </div>
-
+ 
           {/* ── Sidebar ── */}
           <div className="w-full lg:w-64 shrink-0 space-y-4">
             {/* Resources card */}
@@ -198,7 +206,7 @@ export default function KosherPage() {
                 All resources <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-
+ 
             {/* Cuisine chips */}
             {cuisines.length > 0 && (
               <div className="card p-4">
@@ -213,7 +221,7 @@ export default function KosherPage() {
                 </div>
               </div>
             )}
-
+ 
             {/* Certification guide */}
             <div className="card p-4">
               <h3 className="text-sm font-semibold text-zinc-800 mb-3">Certification Guide</h3>
@@ -231,7 +239,7 @@ export default function KosherPage() {
                 ))}
               </div>
             </div>
-
+ 
             {/* Map CTA */}
             <div className="bg-blue-50 rounded-xl border border-blue-100 p-4">
               <p className="text-sm font-semibold text-zinc-900">See on Map</p>
@@ -245,5 +253,13 @@ export default function KosherPage() {
         </div>
       </div>
     </div>
+  );
+}
+ 
+export default function KosherPage() {
+  return (
+    <Suspense>
+      <KosherPageContent />
+    </Suspense>
   );
 }

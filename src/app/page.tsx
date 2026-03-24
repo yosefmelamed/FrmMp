@@ -3,28 +3,21 @@ import { getAmenities, getEvents } from '@/lib/api';
 import { CATEGORY_CONFIG } from '@/components/ui/CategoryBadge';
 import { MapPin, ArrowRight, Calendar, Clock, ChevronRight, Star } from 'lucide-react';
 import type { AmenityCategory } from '@/types';
-
+ 
 export default async function HomePage() {
   const [amenities, events] = await Promise.all([getAmenities(), getEvents()]);
-
-  const stats = [
-    { label: 'Synagogues', value: amenities.filter(a => a.category === 'synagogue').length, cat: 'synagogue' as AmenityCategory },
-    { label: 'Restaurants', value: amenities.filter(a => a.category === 'kosher_restaurant').length, cat: 'kosher_restaurant' as AmenityCategory },
-    { label: 'Grocery', value: amenities.filter(a => a.category === 'kosher_grocery').length, cat: 'kosher_grocery' as AmenityCategory },
-    { label: 'Schools', value: amenities.filter(a => a.category === 'jewish_school').length, cat: 'jewish_school' as AmenityCategory },
-  ];
-
+ 
   const topRated = amenities.filter(a => a.rating && a.rating >= 4.6).slice(0, 3);
-
+ 
   const categoryLinks: { href: string; label: string; desc: string; cat: AmenityCategory }[] = [
-    { href: '/synagogues', label: 'Synagogues', desc: 'Find your community', cat: 'synagogue' },
-    { href: '/kosher?tab=restaurants', label: 'Kosher Restaurants', desc: 'Certified dining', cat: 'kosher_restaurant' },
-    { href: '/kosher?tab=grocery', label: 'Grocery & Markets', desc: 'Kosher food shopping', cat: 'kosher_grocery' },
-    { href: '/kosher?tab=schools', label: 'Jewish Schools', desc: 'Day schools & yeshivas', cat: 'jewish_school' },
-    { href: '/resources', label: 'Community Centers', desc: 'JCCs & organizations', cat: 'jewish_center' },
-    { href: '/resources', label: 'Resources', desc: 'Guides & links', cat: 'mikveh' },
+    { href: '/synagogues',                                    label: 'Synagogues',         desc: 'Find your community',    cat: 'synagogue' },
+    { href: '/kosher?tab=restaurants',                        label: 'Kosher Restaurants', desc: 'Certified dining',       cat: 'kosher_restaurant' },
+    { href: '/kosher?tab=grocery',                            label: 'Grocery & Markets',  desc: 'Kosher food shopping',   cat: 'kosher_grocery' },
+    { href: '/resources?category=Education',     label: 'Jewish Schools',     desc: 'Day schools & yeshivas', cat: 'jewish_school' },
+    { href: '/resources?category=Community',     label: 'Community Centers',  desc: 'JCCs & organizations',   cat: 'jewish_center' },
+    { href: '/resources',                                     label: 'Resources',          desc: 'Guides & links',         cat: 'mikveh' },
   ];
-
+ 
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
@@ -57,27 +50,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Stats */}
-      <section className="border-b border-zinc-100 bg-zinc-50/50">
-        <div className="max-w-7xl mx-auto px-5 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {stats.map(stat => {
-              const cfg = CATEGORY_CONFIG[stat.cat];
-              return (
-                <div key={stat.label} className="card p-4">
-                  <div className={`w-9 h-9 ${cfg.bg} rounded-lg flex items-center justify-center text-lg mb-3`}>
-                    {cfg.emoji}
-                  </div>
-                  <div className="text-2xl font-bold text-zinc-900 font-mono">{stat.value}</div>
-                  <div className="text-xs text-zinc-400 mt-0.5 font-medium">{stat.label}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
+ 
       {/* Category grid */}
       <section className="border-b border-zinc-100">
         <div className="max-w-7xl mx-auto px-5 py-12">
@@ -104,7 +77,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
+ 
       {/* Featured */}
       <section className="border-b border-zinc-100">
         <div className="max-w-7xl mx-auto px-5 py-12">
@@ -154,7 +127,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
+ 
       {/* Events */}
       <section className="border-b border-zinc-100">
         <div className="max-w-7xl mx-auto px-5 py-12">
@@ -188,7 +161,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
+ 
       {/* CTA */}
       <section className="bg-zinc-50 border-b border-zinc-100">
         <div className="max-w-7xl mx-auto px-5 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">

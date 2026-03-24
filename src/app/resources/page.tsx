@@ -1,11 +1,11 @@
 import { getKosherResources, getEvents, getAmenities } from '@/lib/api';
 import { ExternalLink, Calendar, Clock, MapPin, BookOpen, Heart, Globe, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-
+ 
 export const metadata = { title: 'Resources — Jewish Denver' };
-
+ 
 const RES_CATS = ['All', 'Certification', 'Community', 'Education', 'News', 'Guides'];
-
+ 
 export default async function ResourcesPage({
   searchParams,
 }: {
@@ -16,15 +16,21 @@ export default async function ResourcesPage({
     getEvents(),
     getAmenities(['jewish_center', 'jewish_school']),
   ]);
-
+ 
   const activeCat = searchParams.category || 'All';
-  const filteredRes =
-    activeCat === 'All' ? resources : resources.filter(r => r.category === activeCat);
-
+  const filteredRes = activeCat === 'All' ? resources : resources.filter(r => r.category === activeCat);
+ 
+  // Filter institutions by category param — Education = schools, Community = centers
+  const filteredInstitutions = activeCat === 'Education'
+    ? institutions.filter(a => a.category === 'jewish_school')
+    : activeCat === 'Community'
+    ? institutions.filter(a => a.category === 'jewish_center')
+    : institutions;
+ 
   const availableCats = RES_CATS.filter(
     c => c === 'All' || resources.some(r => r.category === c)
   );
-
+ 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -39,20 +45,20 @@ export default async function ResourcesPage({
           </p>
         </div>
       </div>
-
+ 
       <div className="max-w-7xl mx-auto px-5 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
+ 
           {/* ── Left: Online Resources + Schools ── */}
           <div className="lg:col-span-2 space-y-10">
-
+ 
             {/* Online Resources */}
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Globe className="w-4 h-4 text-blue-500" />
                 <h2 className="text-lg font-bold text-zinc-900">Online Resources</h2>
               </div>
-
+ 
               {/* Category filter */}
               <div className="flex flex-wrap gap-1.5 mb-5">
                 {availableCats.map(c => (
@@ -67,7 +73,7 @@ export default async function ResourcesPage({
                   </Link>
                 ))}
               </div>
-
+ 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {filteredRes.map(r => (
                   <a key={r.id} href={r.url || '#'} target="_blank" rel="noopener noreferrer"
@@ -88,16 +94,18 @@ export default async function ResourcesPage({
                 ))}
               </div>
             </section>
-
+ 
             {/* Schools & Centers */}
-            <section>
+            <section id="institutions">
               <div className="flex items-center gap-2 mb-4">
                 <BookOpen className="w-4 h-4 text-violet-500" />
-                <h2 className="text-lg font-bold text-zinc-900">Schools & Community Centers</h2>
+                <h2 className="text-lg font-bold text-zinc-900">
+                  {activeCat === 'Education' ? 'Jewish Schools' : activeCat === 'Community' ? 'Community Centers' : 'Schools & Community Centers'}
+                </h2>
               </div>
-
+ 
               <div className="space-y-3">
-                {institutions.map(a => (
+                {filteredInstitutions.map(a => (
                   <div key={a.id} className="card p-4 flex items-start gap-4">
                     <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center text-lg shrink-0">
                       {a.category === 'jewish_school' ? '📚' : '🏛️'}
@@ -136,7 +144,7 @@ export default async function ResourcesPage({
                 ))}
               </div>
             </section>
-
+ 
             {/* Community Organizations */}
             <section>
               <div className="flex items-center gap-2 mb-4">
@@ -167,7 +175,7 @@ export default async function ResourcesPage({
               </div>
             </section>
           </div>
-
+ 
           {/* ── Right: Events sidebar ── */}
           <div className="space-y-4">
             <div>
@@ -175,7 +183,7 @@ export default async function ResourcesPage({
                 <Calendar className="w-4 h-4 text-amber-500" />
                 <h2 className="text-lg font-bold text-zinc-900">Upcoming Events</h2>
               </div>
-
+ 
               <div className="space-y-3">
                 {events.map(event => {
                   const d = new Date(event.date);
@@ -191,7 +199,7 @@ export default async function ResourcesPage({
                             {d.getDate()}
                           </div>
                         </div>
-
+ 
                         <div className="flex-1 min-w-0">
                           <span className="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-semibold rounded uppercase tracking-wide mb-1">
                             {event.category}
@@ -221,7 +229,7 @@ export default async function ResourcesPage({
                 })}
               </div>
             </div>
-
+ 
             {/* Submit CTA */}
             <div className="bg-zinc-50 rounded-xl border border-zinc-100 p-4">
               <h3 className="text-sm font-semibold text-zinc-800">Add a Resource</h3>
@@ -231,7 +239,7 @@ export default async function ResourcesPage({
                 Submit a Resource
               </Link>
             </div>
-
+ 
             {/* Shabbat info card */}
             <div className="bg-amber-50 rounded-xl border border-amber-100 p-4">
               <h3 className="text-sm font-semibold text-zinc-800 mb-1">Shabbat Times — Denver</h3>
