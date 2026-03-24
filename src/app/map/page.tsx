@@ -225,16 +225,16 @@ function MapPageContent() {
   }, [search]);
  
   // Record search history
-  useEffect(() => {
-    if (!token || !debouncedSearch.trim()) return;
-    if (historyDebounce.current) clearTimeout(historyDebounce.current);
-    historyDebounce.current = setTimeout(() => {
-      historyApi.record(token, debouncedSearch.trim())
-        .then(() => historyApi.list(token).then(setSearchHistory).catch(() => {}))
-        .catch(() => {});
-    }, 1500);
-    return () => { if (historyDebounce.current) clearTimeout(historyDebounce.current); };
-  }, [debouncedSearch, token]);
+  // useEffect(() => {
+  //   if (!token || !debouncedSearch.trim()) return;
+  //   if (historyDebounce.current) clearTimeout(historyDebounce.current);
+  //   historyDebounce.current = setTimeout(() => {
+  //     historyApi.record(token, debouncedSearch.trim())
+  //       .then(() => historyApi.list(token).then(setSearchHistory).catch(() => {}))
+  //       .catch(() => {});
+  //   }, 1500);
+  //   return () => { if (historyDebounce.current) clearTimeout(historyDebounce.current); };
+  // }, [debouncedSearch, token]);
  
   // Derived state
   const categoryCounts = useMemo(() => {
