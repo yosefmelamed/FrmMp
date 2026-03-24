@@ -24,7 +24,6 @@ const MAP_STYLES: any[] = [
 const NEARBY_TYPES = {
   hotel:      { label: 'Hotels',      emoji: '🏨', color: '#0891b2', googleType: 'lodging' },
   attraction: { label: 'Attractions', emoji: '🎭', color: '#7c3aed', googleType: 'tourist_attraction' },
-  restaurant: { label: 'Restaurants', emoji: '🍴', color: '#b45309', googleType: 'restaurant' },
   shopping:   { label: 'Shopping',    emoji: '🛍️', color: '#be185d', googleType: 'shopping_mall' },
 } as const;
 type NearbyType = keyof typeof NEARBY_TYPES;
